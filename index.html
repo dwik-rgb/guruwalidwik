@@ -8,37 +8,201 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
-    <!-- SweetAlert2 for nicer popups -->
+    <!-- SweetAlert2 -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <!-- SheetJS for Excel Export/Import -->
+    <!-- SheetJS -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <!-- jsPDF for PDF Export -->
+    <!-- jsPDF -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.29/jspdf.plugin.autotable.min.js"></script>
+    
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Firebase Configuration (Environment Variables)
+        const firebaseConfig = JSON.parse(__firebase_config);
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+        let currentUser = null;
+
+        // Global State Arrays
+        window.students = [];
+        window.journals = [];
+        window.pillars = [];
+        window.activities = [];
+        
+        // Initialize Auth & Database Listeners
+        const initAuth = async () => {
+            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                await signInWithCustomToken(auth, __initial_auth_token);
+            } else {
+                await signInAnonymously(auth);
+            }
+        };
+
+        initAuth();
+
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                currentUser = user;
+                console.log("Database Connected as:", user.uid);
+                setupListeners(user.uid);
+            }
+        });
+
+        // Setup Real-time Listeners
+        function setupListeners(userId) {
+            // 1. Listen for Students
+            const studentRef = collection(db, 'artifacts', appId, 'users', userId, 'students');
+            onSnapshot(studentRef, (snapshot) => {
+                window.students = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                // Jika kosong, isi data default sekali saja
+                if (window.students.length === 0 && !localStorage.getItem('dataSeeded')) {
+                    seedDefaultData(userId);
+                }
+                renderFilterOptions();
+                renderStudents();
+                renderJournalDatalist();
+            }, (error) => console.error("Student sync error:", error));
+
+            // 2. Listen for Journals
+            const journalRef = collection(db, 'artifacts', appId, 'users', userId, 'journals');
+            onSnapshot(journalRef, (snapshot) => {
+                // Sort manual karena Firestore complex query butuh index
+                window.journals = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+                                               .sort((a, b) => new Date(b.tanggal + ' ' + b.waktu) - new Date(a.tanggal + ' ' + a.waktu));
+                renderJournalRecap();
+            }, (error) => console.error("Journal sync error:", error));
+
+            // 3. Listen for Program (Pillars & Activities stored in a settings collection)
+            const settingsRef = collection(db, 'artifacts', appId, 'users', userId, 'settings');
+            onSnapshot(settingsRef, (snapshot) => {
+                const settings = snapshot.docs.reduce((acc, doc) => ({...acc, [doc.id]: doc.data()}), {});
+                
+                if (settings.program) {
+                    window.pillars = settings.program.pillars || [];
+                    window.activities = settings.program.activities || [];
+                } else {
+                    // Load defaults locally if not in DB yet
+                    window.pillars = defaultPillars;
+                    window.activities = defaultActivities;
+                }
+                renderProgram();
+            }, (error) => console.error("Settings sync error:", error));
+        }
+
+        // Helper to seed initial data
+        async function seedDefaultData(userId) {
+            const batch = writeBatch(db);
+            const studentCol = collection(db, 'artifacts', appId, 'users', userId, 'students');
+            
+            defaultStudents.forEach(s => {
+                const docRef = doc(studentCol);
+                batch.set(docRef, s);
+            });
+
+            // Save default program settings
+            const settingsDoc = doc(db, 'artifacts', appId, 'users', userId, 'settings', 'program');
+            batch.set(settingsDoc, { pillars: defaultPillars, activities: defaultActivities });
+
+            await batch.commit();
+            localStorage.setItem('dataSeeded', 'true');
+            console.log("Default data seeded to database.");
+        }
+
+        // --- EXPORTED FUNCTIONS FOR HTML ONCLICK ---
+        
+        // Students CRUD
+        window.saveStudentDB = async (studentData, id = null) => {
+            if (!currentUser) return;
+            const col = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'students');
+            try {
+                if (id) {
+                    await updateDoc(doc(col, id), studentData);
+                    showToast('Berhasil', 'Data murid diperbarui di database.', 'success');
+                } else {
+                    await addDoc(col, studentData);
+                    showToast('Berhasil', 'Data murid disimpan ke database.', 'success');
+                }
+                closeStudentModal();
+            } catch (e) {
+                console.error(e);
+                showToast('Gagal', 'Terjadi kesalahan database.', 'error');
+            }
+        };
+
+        window.deleteStudentDB = async (id) => {
+            if (!currentUser) return;
+            try {
+                await deleteDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'students', id));
+                showToast('Terhapus', 'Data murid dihapus dari database.', 'success');
+            } catch (e) {
+                showToast('Gagal', 'Gagal menghapus data.', 'error');
+            }
+        };
+
+        // Journals CRUD
+        window.saveJournalDB = async (journalData, id = null) => {
+            if (!currentUser) return;
+            const col = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'journals');
+            try {
+                if (id) {
+                    await updateDoc(doc(col, id), journalData);
+                    showToast('Berhasil', 'Jurnal diperbarui.', 'success');
+                } else {
+                    await addDoc(col, journalData);
+                    showToast('Berhasil', 'Jurnal tersimpan.', 'success');
+                }
+                if(id) closeJournalModal(); 
+            } catch (e) {
+                console.error(e);
+                showToast('Gagal', 'Gagal menyimpan jurnal.', 'error');
+            }
+        };
+
+        window.deleteJournalDB = async (id) => {
+            if (!currentUser) return;
+            try {
+                await deleteDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'journals', id));
+                showToast('Terhapus', 'Jurnal dihapus.', 'success');
+            } catch (e) {
+                showToast('Gagal', 'Gagal menghapus jurnal.', 'error');
+            }
+        };
+
+        // Program CRUD (Single Doc Update)
+        window.saveProgramDB = async (type, dataArray) => {
+            if (!currentUser) return;
+            const docRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'settings', 'program');
+            try {
+                // We need to merge with existing data, or set if new
+                // Simplified: we just update the specific field
+                await updateDoc(docRef, { [type]: dataArray }).catch(async () => {
+                    // If doc doesn't exist, set it (fallback)
+                    await setDoc(docRef, { pillars: window.pillars, activities: window.activities });
+                });
+                showToast('Berhasil', 'Program diperbarui.', 'success');
+            } catch (e) {
+                console.error(e);
+            }
+        };
+
+    </script>
+
     <style>
-        /* Custom Font */
         @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
-        body {
-            font-family: 'Poppins', sans-serif;
-        }
-        .fade-in {
-            animation: fadeIn 0.5s ease-in-out;
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        /* Hide scrollbar for clean look */
-        ::-webkit-scrollbar {
-            width: 8px;
-        }
-        ::-webkit-scrollbar-track {
-            background: #f1f1f1; 
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #888; 
-            border-radius: 4px;
-        }
+        body { font-family: 'Poppins', sans-serif; }
+        .fade-in { animation: fadeIn 0.5s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #888; border-radius: 4px; }
     </style>
 </head>
 <body class="bg-gray-50 min-h-screen relative overflow-x-hidden">
@@ -54,11 +218,10 @@
         </div>
     </div>
 
-    <!-- Student Modal (Hidden by default) -->
-    <div id="studentModal" class="fixed inset-0 z-[60] hidden overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+    <!-- Student Modal -->
+    <div id="studentModal" class="fixed inset-0 z-[60] hidden overflow-y-auto">
         <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true" onclick="closeStudentModal()"></div>
-            <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+            <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onclick="closeStudentModal()"></div>
             <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg w-full">
                 <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
                     <div class="sm:flex sm:items-start">
@@ -68,9 +231,8 @@
                         <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
                             <h3 class="text-lg leading-6 font-medium text-gray-900" id="modal-title">Form Data Murid</h3>
                             <div class="mt-4 space-y-3">
-                                <input type="hidden" id="studentIndex">
+                                <input type="hidden" id="studentId"> <!-- Changed from index to ID -->
                                 
-                                <!-- Photo Upload Section -->
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700 mb-1">Foto Murid</label>
                                     <div class="flex items-center gap-4">
@@ -92,11 +254,8 @@
                                         <option value="2023/2024">
                                         <option value="2024/2025">
                                         <option value="2025/2026">
-                                        <option value="2026/2027">
                                     </datalist>
-                                    <p class="text-[10px] text-gray-500 mt-1">*Ketik manual jika tahun tidak ada di list</p>
                                 </div>
-                                <!-- NISN Field Added Here -->
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700">NISN</label>
                                     <input type="number" id="studentNisn" placeholder="Nomor Induk Siswa Nasional" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-pink-500 focus:border-pink-500">
@@ -122,82 +281,66 @@
                     </div>
                 </div>
                 <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                    <button type="button" onclick="saveStudent()" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-[#FF78F0] text-base font-medium text-white hover:bg-pink-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 sm:ml-3 sm:w-auto sm:text-sm">
-                        Simpan
-                    </button>
-                    <button type="button" onclick="closeStudentModal()" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
-                        Batal
-                    </button>
+                    <button type="button" onclick="saveStudent()" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-[#FF78F0] text-base font-medium text-white hover:bg-pink-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 sm:ml-3 sm:w-auto sm:text-sm">Simpan</button>
+                    <button type="button" onclick="closeStudentModal()" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">Batal</button>
                 </div>
             </div>
         </div>
     </div>
 
     <!-- Journal Edit Modal -->
-    <div id="journalModal" class="fixed inset-0 z-[60] hidden overflow-y-auto" aria-labelledby="journal-modal-title" role="dialog" aria-modal="true">
+    <div id="journalModal" class="fixed inset-0 z-[60] hidden overflow-y-auto">
         <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true" onclick="closeJournalModal()"></div>
-            <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+            <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onclick="closeJournalModal()"></div>
             <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl w-full">
-                <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                    <div class="sm:flex sm:items-start">
-                        <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-emerald-100 sm:mx-0 sm:h-10 sm:w-10">
-                            <i data-lucide="edit-3" class="h-6 w-6 text-emerald-600"></i>
+                <div class="bg-white px-4 pt-5 pb-4 sm:p-6">
+                    <h3 class="text-lg leading-6 font-medium text-gray-900" id="journal-modal-title">Edit Data Jurnal</h3>
+                    <div class="mt-4 space-y-3 md:grid md:grid-cols-2 md:gap-4 md:space-y-0">
+                        <input type="hidden" id="editJournalId"> <!-- Changed to ID -->
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Tanggal</label>
+                            <input type="date" id="editJournalDate" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-emerald-500 focus:border-emerald-500">
                         </div>
-                        <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
-                            <h3 class="text-lg leading-6 font-medium text-gray-900" id="journal-modal-title">Edit Data Jurnal</h3>
-                            <div class="mt-4 space-y-3 md:grid md:grid-cols-2 md:gap-4 md:space-y-0">
-                                <input type="hidden" id="editJournalIndex">
-                                
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700">Tanggal</label>
-                                    <input type="date" id="editJournalDate" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-emerald-500 focus:border-emerald-500">
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700">Waktu</label>
-                                    <input type="time" id="editJournalTime" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-emerald-500 focus:border-emerald-500">
-                                </div>
-                                <div class="md:col-span-2">
-                                    <label class="block text-sm font-medium text-gray-700">Nama Murid</label>
-                                    <input type="text" id="editJournalName" list="dynamic_student_list_modal" oninput="syncStudentData('editJournal')" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-emerald-500 focus:border-emerald-500">
-                                    <datalist id="dynamic_student_list_modal"></datalist>
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700">Kelas</label>
-                                    <input type="text" id="editJournalClass" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-emerald-500 focus:border-emerald-500">
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700">Tahun Ajaran</label>
-                                    <input type="text" id="editJournalAcademicYear" placeholder="Contoh: 2024/2025" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-emerald-500 focus:border-emerald-500">
-                                </div>
-                                <div class="md:col-span-2">
-                                    <label class="block text-sm font-medium text-gray-700">Jenis Bimbingan</label>
-                                    <select id="editJournalType" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white">
-                                        <option value="Pendampingan Akademik">Pendampingan Akademik</option>
-                                        <option value="Pengembangan Kompetensi">Pengembangan Kompetensi</option>
-                                        <option value="Pengembangan Keterampilan">Pengembangan Keterampilan</option>
-                                        <option value="Pembentukan Karakter">Pembentukan Karakter</option>
-                                    </select>
-                                </div>
-                                <div class="md:col-span-2">
-                                    <label class="block text-sm font-medium text-gray-700">Topik</label>
-                                    <textarea id="editJournalTopic" rows="2" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-emerald-500 focus:border-emerald-500"></textarea>
-                                </div>
-                                <div class="md:col-span-2">
-                                    <label class="block text-sm font-medium text-gray-700">Tindak Lanjut</label>
-                                    <textarea id="editJournalAction" rows="2" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-emerald-500 focus:border-emerald-500"></textarea>
-                                </div>
-                            </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Waktu</label>
+                            <input type="time" id="editJournalTime" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-emerald-500 focus:border-emerald-500">
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="block text-sm font-medium text-gray-700">Nama Murid</label>
+                            <input type="text" id="editJournalName" list="dynamic_student_list_modal" oninput="syncStudentData('editJournal')" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-emerald-500 focus:border-emerald-500">
+                            <datalist id="dynamic_student_list_modal"></datalist>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Kelas</label>
+                            <input type="text" id="editJournalClass" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-emerald-500 focus:border-emerald-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Tahun Ajaran</label>
+                            <input type="text" id="editJournalAcademicYear" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-emerald-500 focus:border-emerald-500">
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="block text-sm font-medium text-gray-700">Jenis Bimbingan</label>
+                            <select id="editJournalType" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white">
+                                <option value="Pendampingan Akademik">Pendampingan Akademik</option>
+                                <option value="Pengembangan Kompetensi">Pengembangan Kompetensi</option>
+                                <option value="Pengembangan Keterampilan">Pengembangan Keterampilan</option>
+                                <option value="Pembentukan Karakter">Pembentukan Karakter</option>
+                            </select>
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="block text-sm font-medium text-gray-700">Topik</label>
+                            <textarea id="editJournalTopic" rows="2" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-emerald-500 focus:border-emerald-500"></textarea>
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="block text-sm font-medium text-gray-700">Tindak Lanjut</label>
+                            <textarea id="editJournalAction" rows="2" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-emerald-500 focus:border-emerald-500"></textarea>
                         </div>
                     </div>
                 </div>
                 <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                    <button type="button" onclick="saveJournalEdit()" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-[#10B981] text-base font-medium text-white hover:bg-emerald-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 sm:ml-3 sm:w-auto sm:text-sm">
-                        Update
-                    </button>
-                    <button type="button" onclick="closeJournalModal()" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
-                        Batal
-                    </button>
+                    <button onclick="saveJournalEdit()" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-[#10B981] text-base font-medium text-white hover:bg-emerald-600 sm:ml-3 sm:w-auto sm:text-sm">Update</button>
+                    <button onclick="closeJournalModal()" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">Batal</button>
                 </div>
             </div>
         </div>
@@ -209,12 +352,8 @@
             <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onclick="closePdfSettings()"></div>
             <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-sm w-full">
                 <div class="bg-white px-4 pt-5 pb-4 sm:p-6">
-                    <div class="flex items-center gap-3 mb-4 border-b pb-2">
-                        <div class="bg-gray-100 p-2 rounded-full"><i data-lucide="settings" class="w-5 h-5 text-gray-600"></i></div>
-                        <h3 class="text-lg font-bold text-gray-900">Pengaturan PDF</h3>
-                    </div>
+                    <h3 class="text-lg font-bold text-gray-900 mb-4">Pengaturan PDF</h3>
                     <div class="space-y-4">
-                        <!-- Paper Size -->
                         <div>
                             <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Ukuran Kertas</label>
                             <select id="pdfSize" class="w-full border border-gray-300 rounded p-2 text-sm bg-white">
@@ -224,7 +363,6 @@
                                 <option value="letter">Letter (216 x 279 mm)</option>
                             </select>
                         </div>
-                        <!-- Orientation -->
                         <div>
                             <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Orientasi</label>
                             <div class="flex gap-2">
@@ -238,7 +376,6 @@
                                 </label>
                             </div>
                         </div>
-                        <!-- Margins -->
                         <div>
                             <label class="block text-xs font-semibold text-gray-600 uppercase mb-1">Margin (mm)</label>
                             <div class="grid grid-cols-2 gap-2">
@@ -251,16 +388,15 @@
                     </div>
                 </div>
                 <div class="bg-gray-50 px-4 py-3 sm:px-6 flex justify-end">
-                    <button onclick="closePdfSettings()" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-[#10B981] text-base font-medium text-white hover:bg-emerald-600 sm:text-sm">
-                        Simpan Pengaturan
-                    </button>
+                    <button onclick="closePdfSettings()" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-[#10B981] text-base font-medium text-white hover:bg-emerald-600 sm:text-sm">Simpan Pengaturan</button>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Pillar Modal -->
+    <!-- Pillar & Activity Modals -->
     <div id="pillarModal" class="fixed inset-0 z-[60] hidden overflow-y-auto">
+        <!-- Content same as previous, logic handled by openPillarModal -->
         <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
             <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onclick="closePillarModal()"></div>
             <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md w-full">
@@ -268,34 +404,18 @@
                     <h3 id="pillarModalTitle" class="text-lg font-medium text-gray-900 mb-4">Edit Pilar</h3>
                     <input type="hidden" id="pillarIndex">
                     <div class="space-y-3">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700">Nama Pilar</label>
-                            <input type="text" id="pillarName" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-purple-500 focus:border-purple-500">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700">Ikon (Nama Lucide)</label>
-                            <select id="pillarIcon" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-purple-500 focus:border-purple-500 bg-white">
-                                <option value="book">Book (Buku)</option>
-                                <option value="award">Award (Penghargaan)</option>
-                                <option value="pen-tool">Pen Tool (Alat Tulis)</option>
-                                <option value="heart">Heart (Hati)</option>
-                                <option value="star">Star (Bintang)</option>
-                                <option value="users">Users (Orang)</option>
-                                <option value="lightbulb">Lightbulb (Ide)</option>
-                                <option value="target">Target (Target)</option>
-                            </select>
-                        </div>
+                        <div><label class="block text-sm font-medium text-gray-700">Nama Pilar</label><input type="text" id="pillarName" class="mt-1 block w-full border border-gray-300 rounded-md p-2"></div>
+                        <div><label class="block text-sm font-medium text-gray-700">Ikon</label><select id="pillarIcon" class="mt-1 block w-full border border-gray-300 rounded-md p-2 bg-white"><option value="book">Book</option><option value="award">Award</option><option value="pen-tool">Pen Tool</option><option value="heart">Heart</option><option value="star">Star</option><option value="users">Users</option><option value="lightbulb">Lightbulb</option><option value="target">Target</option></select></div>
                     </div>
                 </div>
                 <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                    <button onclick="savePillar()" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-[#A31ACB] text-base font-medium text-white hover:bg-purple-600 sm:ml-3 sm:w-auto sm:text-sm">Simpan</button>
-                    <button onclick="closePillarModal()" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">Batal</button>
+                    <button onclick="savePillar()" class="w-full inline-flex justify-center rounded-md bg-[#A31ACB] px-4 py-2 text-white hover:bg-purple-600 sm:ml-3 sm:w-auto sm:text-sm">Simpan</button>
+                    <button onclick="closePillarModal()" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 px-4 py-2 bg-white hover:bg-gray-50 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">Batal</button>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Activity Modal -->
     <div id="activityModal" class="fixed inset-0 z-[60] hidden overflow-y-auto">
         <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
             <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onclick="closeActivityModal()"></div>
@@ -303,363 +423,121 @@
                 <div class="bg-white px-4 pt-5 pb-4 sm:p-6">
                     <h3 id="activityModalTitle" class="text-lg font-medium text-gray-900 mb-4">Edit Kegiatan</h3>
                     <input type="hidden" id="activityIndex">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Deskripsi Kegiatan</label>
-                        <textarea id="activityDesc" rows="4" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-purple-500 focus:border-purple-500"></textarea>
-                    </div>
+                    <div><label class="block text-sm font-medium text-gray-700">Deskripsi Kegiatan</label><textarea id="activityDesc" rows="4" class="mt-1 block w-full border border-gray-300 rounded-md p-2"></textarea></div>
                 </div>
                 <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                    <button onclick="saveActivity()" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-[#A31ACB] text-base font-medium text-white hover:bg-purple-600 sm:ml-3 sm:w-auto sm:text-sm">Simpan</button>
-                    <button onclick="closeActivityModal()" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">Batal</button>
+                    <button onclick="saveActivity()" class="w-full inline-flex justify-center rounded-md bg-[#A31ACB] px-4 py-2 text-white hover:bg-purple-600 sm:ml-3 sm:w-auto sm:text-sm">Simpan</button>
+                    <button onclick="closeActivityModal()" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 px-4 py-2 bg-white hover:bg-gray-50 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">Batal</button>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- ================= LANDING PAGE ================= -->
+    <!-- Landing Page -->
     <section id="page-landing" class="flex items-center justify-center min-h-screen p-4">
         <div class="w-full max-w-md bg-[#39B5E0] rounded-2xl shadow-2xl p-8 text-center text-white fade-in relative overflow-hidden">
             <div class="absolute -top-10 -right-10 w-32 h-32 bg-white opacity-10 rounded-full"></div>
-            
-            <div class="mb-6 flex justify-center">
-                <div class="bg-white p-4 rounded-full shadow-md text-[#39B5E0]">
-                    <i data-lucide="graduation-cap" class="w-12 h-12"></i>
-                </div>
-            </div>
-            
+            <div class="mb-6 flex justify-center"><div class="bg-white p-4 rounded-full shadow-md text-[#39B5E0]"><i data-lucide="graduation-cap" class="w-12 h-12"></i></div></div>
             <h1 class="text-2xl font-bold mb-2">Selamat Datang</h1>
             <h2 class="text-xl font-semibold mb-1">Aplikasi Guru Wali</h2>
             <p class="text-white/90 font-medium mb-8">Dwik Setyawan, S.Pd.</p>
-            
-            <button onclick="navigateTo('page-home')" class="bg-white text-[#39B5E0] font-bold py-3 px-8 rounded-full shadow-lg hover:bg-gray-100 transform hover:scale-105 transition duration-300 flex items-center justify-center gap-2 mx-auto w-full">
-                <span>Mulai</span>
-                <i data-lucide="arrow-right" class="w-5 h-5"></i>
-            </button>
+            <button onclick="navigateTo('page-home')" class="bg-white text-[#39B5E0] font-bold py-3 px-8 rounded-full shadow-lg hover:bg-gray-100 transform hover:scale-105 transition duration-300 flex items-center justify-center gap-2 mx-auto w-full"><span>Mulai</span><i data-lucide="arrow-right" class="w-5 h-5"></i></button>
         </div>
     </section>
 
-    <!-- ================= HOME MENU (RESPONSIVE GRID) ================= -->
+    <!-- Home -->
     <section id="page-home" class="hidden min-h-screen p-4 pt-10 pb-10">
         <div class="max-w-md md:max-w-6xl mx-auto fade-in">
-            <div class="bg-white p-6 rounded-2xl shadow-lg mb-8 text-center border-b-4 border-[#39B5E0]">
-                <h2 class="text-gray-800 font-bold text-xl">Dashboard Utama</h2>
-                <p class="text-gray-500 text-sm">Silakan pilih menu di bawah ini</p>
-            </div>
-
+            <div class="bg-white p-6 rounded-2xl shadow-lg mb-8 text-center border-b-4 border-[#39B5E0]"><h2 class="text-gray-800 font-bold text-xl">Dashboard Utama</h2><p class="text-gray-500 text-sm">Silakan pilih menu di bawah ini</p></div>
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <!-- Menu Program Kegiatan -->
-                <div onclick="navigateTo('page-program')" class="group cursor-pointer bg-[#A31ACB] p-6 rounded-2xl shadow-lg text-white transform hover:scale-105 transition duration-300 relative overflow-hidden h-40 flex flex-col justify-center">
-                    <div class="absolute top-2 right-2 opacity-20">
-                        <i data-lucide="calendar-check" class="w-16 h-16"></i>
-                    </div>
-                    <h3 class="text-lg font-bold z-10">Program Kegiatan</h3>
-                    <p class="text-xs opacity-90 mt-1 z-10">Kelola Pilar & Bentuk Kegiatan</p>
-                    <div class="mt-auto flex items-center text-sm font-semibold z-10">
-                        Buka Menu <i data-lucide="chevron-right" class="w-4 h-4 ml-1 group-hover:translate-x-1 transition"></i>
-                    </div>
-                </div>
-
-                <!-- Menu Daftar Murid -->
-                <div onclick="navigateTo('page-students')" class="group cursor-pointer bg-[#FF78F0] p-6 rounded-2xl shadow-lg text-white transform hover:scale-105 transition duration-300 relative overflow-hidden h-40 flex flex-col justify-center">
-                    <div class="absolute top-2 right-2 opacity-20">
-                        <i data-lucide="users" class="w-16 h-16"></i>
-                    </div>
-                    <h3 class="text-lg font-bold z-10">Daftar Murid</h3>
-                    <p class="text-xs opacity-90 mt-1 z-10">Kelola Data & Tahun Ajaran</p>
-                    <div class="mt-auto flex items-center text-sm font-semibold z-10">
-                        Buka Menu <i data-lucide="chevron-right" class="w-4 h-4 ml-1 group-hover:translate-x-1 transition"></i>
-                    </div>
-                </div>
-
-                <!-- Menu Jurnal Guru -->
-                <div onclick="navigateTo('page-journal')" class="group cursor-pointer bg-[#F5EA5A] p-6 rounded-2xl shadow-lg text-gray-800 transform hover:scale-105 transition duration-300 relative overflow-hidden h-40 flex flex-col justify-center">
-                    <div class="absolute top-2 right-2 opacity-20 text-black">
-                        <i data-lucide="book-open" class="w-16 h-16"></i>
-                    </div>
-                    <h3 class="text-lg font-bold z-10">Jurnal Guru Wali</h3>
-                    <p class="text-xs opacity-80 mt-1 text-gray-700 z-10">Formulir Catatan Harian</p>
-                    <div class="mt-auto flex items-center text-sm font-semibold z-10">
-                        Buka Menu <i data-lucide="chevron-right" class="w-4 h-4 ml-1 group-hover:translate-x-1 transition"></i>
-                    </div>
-                </div>
-
-                <!-- Menu Rekap Jurnal -->
-                <div onclick="navigateTo('page-recap')" class="group cursor-pointer bg-[#10B981] p-6 rounded-2xl shadow-lg text-white transform hover:scale-105 transition duration-300 relative overflow-hidden h-40 flex flex-col justify-center">
-                    <div class="absolute top-2 right-2 opacity-20">
-                        <i data-lucide="clipboard-list" class="w-16 h-16"></i>
-                    </div>
-                    <h3 class="text-lg font-bold z-10">Rekap Jurnal</h3>
-                    <p class="text-xs opacity-90 mt-1 z-10">Riwayat & Ekspor Data</p>
-                    <div class="mt-auto flex items-center text-sm font-semibold z-10">
-                        Buka Menu <i data-lucide="chevron-right" class="w-4 h-4 ml-1 group-hover:translate-x-1 transition"></i>
-                    </div>
-                </div>
+                <!-- Menu Items -->
+                <div onclick="navigateTo('page-program')" class="group cursor-pointer bg-[#A31ACB] p-6 rounded-2xl shadow-lg text-white transform hover:scale-105 transition duration-300 relative overflow-hidden h-40 flex flex-col justify-center"><div class="absolute top-2 right-2 opacity-20"><i data-lucide="calendar-check" class="w-16 h-16"></i></div><h3 class="text-lg font-bold z-10">Program Kegiatan</h3><p class="text-xs opacity-90 mt-1 z-10">Kelola Pilar & Bentuk Kegiatan</p><div class="mt-auto flex items-center text-sm font-semibold z-10">Buka Menu <i data-lucide="chevron-right" class="w-4 h-4 ml-1"></i></div></div>
+                <div onclick="navigateTo('page-students')" class="group cursor-pointer bg-[#FF78F0] p-6 rounded-2xl shadow-lg text-white transform hover:scale-105 transition duration-300 relative overflow-hidden h-40 flex flex-col justify-center"><div class="absolute top-2 right-2 opacity-20"><i data-lucide="users" class="w-16 h-16"></i></div><h3 class="text-lg font-bold z-10">Daftar Murid</h3><p class="text-xs opacity-90 mt-1 z-10">Kelola Data & Tahun Ajaran</p><div class="mt-auto flex items-center text-sm font-semibold z-10">Buka Menu <i data-lucide="chevron-right" class="w-4 h-4 ml-1"></i></div></div>
+                <div onclick="navigateTo('page-journal')" class="group cursor-pointer bg-[#F5EA5A] p-6 rounded-2xl shadow-lg text-gray-800 transform hover:scale-105 transition duration-300 relative overflow-hidden h-40 flex flex-col justify-center"><div class="absolute top-2 right-2 opacity-20 text-black"><i data-lucide="book-open" class="w-16 h-16"></i></div><h3 class="text-lg font-bold z-10">Jurnal Guru Wali</h3><p class="text-xs opacity-80 mt-1 text-gray-700 z-10">Formulir Catatan Harian</p><div class="mt-auto flex items-center text-sm font-semibold z-10">Buka Menu <i data-lucide="chevron-right" class="w-4 h-4 ml-1"></i></div></div>
+                <div onclick="navigateTo('page-recap')" class="group cursor-pointer bg-[#10B981] p-6 rounded-2xl shadow-lg text-white transform hover:scale-105 transition duration-300 relative overflow-hidden h-40 flex flex-col justify-center"><div class="absolute top-2 right-2 opacity-20"><i data-lucide="clipboard-list" class="w-16 h-16"></i></div><h3 class="text-lg font-bold z-10">Rekap Jurnal</h3><p class="text-xs opacity-90 mt-1 z-10">Riwayat & Ekspor Data</p><div class="mt-auto flex items-center text-sm font-semibold z-10">Buka Menu <i data-lucide="chevron-right" class="w-4 h-4 ml-1"></i></div></div>
             </div>
-
-            <div class="mt-12 text-center text-gray-400 text-xs">
-                &copy; 2024 Aplikasi Guru Wali - Dwik Setyawan, S.Pd.
-            </div>
+            <div class="mt-12 text-center text-gray-400 text-xs">&copy; 2024 Aplikasi Guru Wali - Dwik Setyawan, S.Pd.</div>
         </div>
     </section>
 
-    <!-- ================= HALAMAN PROGRAM KEGIATAN (RESPONSIVE) ================= -->
+    <!-- Program Page -->
     <section id="page-program" class="hidden min-h-screen p-4 pb-10">
         <div class="max-w-2xl md:max-w-6xl mx-auto fade-in">
-            <div class="bg-[#A31ACB] text-white p-6 rounded-t-2xl shadow-lg flex items-center justify-between sticky top-0 z-10">
-                <div>
-                    <h2 class="font-bold text-lg">Program Kegiatan</h2>
-                    <p class="text-xs opacity-90">Rencana Kerja Guru Wali</p>
-                </div>
-                <button onclick="navigateTo('page-home')" class="bg-white/20 p-2 rounded-full hover:bg-white/30 transition">
-                    <i data-lucide="home" class="w-5 h-5"></i>
-                </button>
-            </div>
-
+            <div class="bg-[#A31ACB] text-white p-6 rounded-t-2xl shadow-lg flex items-center justify-between sticky top-0 z-10"><div><h2 class="font-bold text-lg">Program Kegiatan</h2><p class="text-xs opacity-90">Rencana Kerja Guru Wali</p></div><button onclick="navigateTo('page-home')" class="bg-white/20 p-2 rounded-full hover:bg-white/30"><i data-lucide="home" class="w-5 h-5"></i></button></div>
             <div class="bg-white p-6 rounded-b-2xl shadow-lg">
-                <!-- Layout Grid for Desktop: Pillars Left, Activity Right -->
                 <div class="flex flex-col lg:flex-row gap-8">
-                    <!-- PILLARS SECTION -->
-                    <div class="lg:w-1/3">
-                        <div class="flex justify-between items-center mb-3 border-b-2 border-[#A31ACB] pb-1">
-                            <h3 class="text-[#A31ACB] font-bold text-lg">Pilar Program</h3>
-                            <button onclick="openPillarModal()" class="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded hover:bg-purple-200 transition font-medium flex items-center gap-1">
-                                <i data-lucide="plus" class="w-3 h-3"></i> Tambah
-                            </button>
-                        </div>
-                        <div id="pillar-container" class="grid grid-cols-1 gap-3">
-                            <!-- Pillars loaded by JS -->
-                        </div>
-                    </div>
-
-                    <!-- ACTIVITIES SECTION -->
-                    <div class="lg:w-2/3">
-                        <div class="flex justify-between items-center mb-3 border-b-2 border-[#A31ACB] pb-1">
-                            <h3 class="text-[#A31ACB] font-bold text-lg">Bentuk Kegiatan</h3>
-                            <button onclick="openActivityModal()" class="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded hover:bg-purple-200 transition font-medium flex items-center gap-1">
-                                <i data-lucide="plus" class="w-3 h-3"></i> Tambah
-                            </button>
-                        </div>
-                        <div class="overflow-x-auto">
-                            <table class="w-full text-sm text-left text-gray-600 border border-gray-200 rounded-lg overflow-hidden">
-                                <thead class="text-xs text-white uppercase bg-[#A31ACB]">
-                                    <tr>
-                                        <th scope="col" class="px-4 py-3 w-10 text-center">No</th>
-                                        <th scope="col" class="px-4 py-3">Deskripsi Kegiatan</th>
-                                        <th scope="col" class="px-4 py-3 text-center w-20">Aksi</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="activity-tbody" class="divide-y divide-gray-100">
-                                    <!-- Content loaded by JS -->
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
+                    <div class="lg:w-1/3"><div class="flex justify-between items-center mb-3 border-b-2 border-[#A31ACB] pb-1"><h3 class="text-[#A31ACB] font-bold text-lg">Pilar Program</h3><button onclick="openPillarModal()" class="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded flex items-center gap-1"><i data-lucide="plus" class="w-3 h-3"></i> Tambah</button></div><div id="pillar-container" class="grid grid-cols-1 gap-3"></div></div>
+                    <div class="lg:w-2/3"><div class="flex justify-between items-center mb-3 border-b-2 border-[#A31ACB] pb-1"><h3 class="text-[#A31ACB] font-bold text-lg">Bentuk Kegiatan</h3><button onclick="openActivityModal()" class="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded flex items-center gap-1"><i data-lucide="plus" class="w-3 h-3"></i> Tambah</button></div><div class="overflow-x-auto"><table class="w-full text-sm text-left text-gray-600 border border-gray-200 rounded-lg overflow-hidden"><thead class="text-xs text-white uppercase bg-[#A31ACB]"><tr><th scope="col" class="px-4 py-3 w-10 text-center">No</th><th scope="col" class="px-4 py-3">Deskripsi Kegiatan</th><th scope="col" class="px-4 py-3 text-center w-20">Aksi</th></tr></thead><tbody id="activity-tbody" class="divide-y divide-gray-100"></tbody></table></div></div>
                 </div>
-
-                <div class="mt-8">
-                    <button onclick="navigateTo('page-home')" class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-3 px-4 rounded-lg transition duration-200 flex items-center justify-center gap-2">
-                        <i data-lucide="arrow-left" class="w-4 h-4"></i> Kembali ke Home
-                    </button>
-                </div>
+                <div class="mt-8"><button onclick="navigateTo('page-home')" class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-3 px-4 rounded-lg flex items-center justify-center gap-2"><i data-lucide="arrow-left" class="w-4 h-4"></i> Kembali ke Home</button></div>
             </div>
         </div>
     </section>
 
-    <!-- ================= HALAMAN DAFTAR MURID (RESPONSIVE GRID) ================= -->
+    <!-- Students Page -->
     <section id="page-students" class="hidden min-h-screen p-4 pb-10">
         <div class="max-w-md md:max-w-7xl mx-auto fade-in">
             <div class="bg-[#FF78F0] text-white p-6 rounded-t-2xl shadow-lg sticky top-0 z-10">
-                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div>
-                        <h2 class="font-bold text-lg">Daftar Murid</h2>
-                        <p class="text-xs opacity-90">Kelola Murid Bimbingan</p>
-                    </div>
-                    <div class="flex items-center gap-2 self-end md:self-auto">
-                        <button onclick="openAddModal()" class="bg-white text-[#FF78F0] p-2 rounded-full hover:bg-gray-100 transition shadow-sm" title="Tambah Murid">
-                            <i data-lucide="plus" class="w-5 h-5"></i>
-                        </button>
-                        <button onclick="navigateTo('page-home')" class="bg-white/20 p-2 rounded-full hover:bg-white/30 transition">
-                            <i data-lucide="home" class="w-5 h-5"></i>
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Excel Actions & Filter -->
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4"><div><h2 class="font-bold text-lg">Daftar Murid</h2><p class="text-xs opacity-90">Kelola Murid Bimbingan</p></div><div class="flex items-center gap-2 self-end md:self-auto"><button onclick="openAddModal()" class="bg-white text-[#FF78F0] p-2 rounded-full shadow-sm"><i data-lucide="plus" class="w-5 h-5"></i></button><button onclick="navigateTo('page-home')" class="bg-white/20 p-2 rounded-full"><i data-lucide="home" class="w-5 h-5"></i></button></div></div>
                 <div class="mt-4 pt-4 border-t border-white/20 flex flex-col md:flex-row gap-3 justify-between items-center">
-                    <div class="flex gap-2 w-full md:w-auto">
-                        <input type="file" id="importFile" accept=".xlsx, .xls" class="hidden" onchange="handleFileImport(this)">
-                        <button onclick="exportToExcel()" class="flex-1 bg-white/20 hover:bg-white/30 text-white text-xs py-2 px-3 rounded-lg flex items-center justify-center gap-2 transition">
-                            <i data-lucide="download" class="w-4 h-4"></i> Ekspor
-                        </button>
-                        <button onclick="document.getElementById('importFile').click()" class="flex-1 bg-white/20 hover:bg-white/30 text-white text-xs py-2 px-3 rounded-lg flex items-center justify-center gap-2 transition">
-                            <i data-lucide="upload" class="w-4 h-4"></i> Impor
-                        </button>
-                    </div>
-                    
-                    <!-- Filter Dropdown -->
-                    <div class="flex items-center gap-2 w-full md:w-auto justify-end">
-                        <label class="text-sm font-medium text-white/90">Filter Tahun:</label>
-                        <select id="filterAcademicYear" onchange="renderStudents()" class="border-none rounded-lg p-2 text-sm focus:outline-none text-[#FF78F0] bg-white cursor-pointer w-1/2 md:w-auto">
-                            <option value="all">Semua Tahun</option>
-                            <!-- Options populated by JS -->
-                        </select>
-                    </div>
+                    <div class="flex gap-2 w-full md:w-auto"><input type="file" id="importFile" accept=".xlsx, .xls" class="hidden" onchange="handleFileImport(this)"><button onclick="exportToExcel()" class="flex-1 bg-white/20 hover:bg-white/30 text-white text-xs py-2 px-3 rounded-lg flex items-center justify-center gap-2"><i data-lucide="download" class="w-4 h-4"></i> Ekspor</button><button onclick="document.getElementById('importFile').click()" class="flex-1 bg-white/20 hover:bg-white/30 text-white text-xs py-2 px-3 rounded-lg flex items-center justify-center gap-2"><i data-lucide="upload" class="w-4 h-4"></i> Impor</button></div>
+                    <div class="flex items-center gap-2 w-full md:w-auto justify-end"><label class="text-sm font-medium text-white/90">Filter Tahun:</label><select id="filterAcademicYear" onchange="renderStudents()" class="border-none rounded-lg p-2 text-sm text-[#FF78F0] bg-white cursor-pointer w-1/2 md:w-auto"><option value="all">Semua Tahun</option></select></div>
                 </div>
             </div>
-
             <div class="bg-white p-6 rounded-b-2xl shadow-lg min-h-[400px]">
-                <div id="student-list-container" class="space-y-4 md:space-y-0 md:grid md:grid-cols-2 lg:grid-cols-3 md:gap-4">
-                    <!-- Dynamic Content (Grid on Desktop, List on Mobile) -->
-                </div>
-
-                <div class="mt-8">
-                    <button onclick="navigateTo('page-home')" class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-3 px-4 rounded-lg transition duration-200 flex items-center justify-center gap-2">
-                        <i data-lucide="arrow-left" class="w-4 h-4"></i> Kembali ke Home
-                    </button>
-                </div>
+                <div id="student-list-container" class="space-y-4 md:space-y-0 md:grid md:grid-cols-2 lg:grid-cols-3 md:gap-4"></div>
+                <div class="mt-8"><button onclick="navigateTo('page-home')" class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-3 px-4 rounded-lg flex items-center justify-center gap-2"><i data-lucide="arrow-left" class="w-4 h-4"></i> Kembali ke Home</button></div>
             </div>
         </div>
     </section>
 
-    <!-- ================= HALAMAN JURNAL GURU (RESPONSIVE FORM) ================= -->
+    <!-- Journal Page -->
     <section id="page-journal" class="hidden min-h-screen p-4 pb-10">
         <div class="max-w-md md:max-w-4xl mx-auto fade-in">
-            <div class="bg-[#F5EA5A] text-gray-800 p-6 rounded-t-2xl shadow-lg flex items-center justify-between sticky top-0 z-10">
-                <div>
-                    <h2 class="font-bold text-lg">Jurnal Guru Wali</h2>
-                    <p class="text-xs opacity-80">Formulir Catatan Bimbingan</p>
-                </div>
-                <button onclick="navigateTo('page-home')" class="bg-black/10 p-2 rounded-full hover:bg-black/20 transition">
-                    <i data-lucide="home" class="w-5 h-5"></i>
-                </button>
-            </div>
-
+            <div class="bg-[#F5EA5A] text-gray-800 p-6 rounded-t-2xl shadow-lg flex items-center justify-between sticky top-0 z-10"><div><h2 class="font-bold text-lg">Jurnal Guru Wali</h2><p class="text-xs opacity-80">Formulir Catatan Bimbingan</p></div><button onclick="navigateTo('page-home')" class="bg-black/10 p-2 rounded-full"><i data-lucide="home" class="w-5 h-5"></i></button></div>
             <div class="bg-white p-6 rounded-b-2xl shadow-lg">
                 <form id="journalForm" onsubmit="submitJournal(event)" class="space-y-4 md:space-y-0 md:grid md:grid-cols-2 md:gap-6">
-                    
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Tanggal</label>
-                        <input type="date" name="tanggal" required class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400 outline-none transition">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Waktu</label>
-                        <input type="time" name="waktu" required class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400 outline-none transition">
-                    </div>
-
-                    <div class="md:col-span-2">
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Nama Murid Bimbingan</label>
-                        <input type="text" id="journalName" name="nama" list="dynamic_student_list" oninput="syncStudentData('journal')" placeholder="Ketik nama murid..." required class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400 outline-none transition">
-                        <datalist id="dynamic_student_list"></datalist>
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Kelas</label>
-                        <input type="text" id="journalClass" name="kelas" placeholder="Contoh: XII IPA 1" required class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400 outline-none transition">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Tahun Ajaran</label>
-                        <input type="text" id="journalAcademicYear" name="academicYear" placeholder="Contoh: 2024/2025" required class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400 outline-none transition">
-                    </div>
-
-                    <div class="md:col-span-2">
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Jenis Bimbingan</label>
-                        <select name="jenis" required class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400 outline-none transition bg-white">
-                            <option value="" disabled selected>-- Pilih Jenis --</option>
-                            <option value="Pendampingan Akademik">Pendampingan Akademik</option>
-                            <option value="Pengembangan Kompetensi">Pengembangan Kompetensi</option>
-                            <option value="Pengembangan Keterampilan">Pengembangan Keterampilan</option>
-                            <option value="Pembentukan Karakter">Pembentukan Karakter</option>
-                        </select>
-                    </div>
-
-                    <div class="md:col-span-2">
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Topik / Permasalahan</label>
-                        <textarea name="topik" rows="3" required placeholder="Deskripsikan permasalahan..." class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400 outline-none transition"></textarea>
-                    </div>
-
-                    <div class="md:col-span-2">
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Tindak Lanjut</label>
-                        <textarea name="tindak_lanjut" rows="3" required placeholder="Rencana penyelesaian..." class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400 outline-none transition"></textarea>
-                    </div>
-
-                    <div class="md:col-span-2 pt-2">
-                        <button type="submit" id="btn-submit" class="w-full bg-[#F5EA5A] hover:bg-yellow-300 text-gray-900 font-bold py-3 px-4 rounded-lg shadow-md hover:shadow-lg transform active:scale-95 transition duration-200 flex justify-center items-center gap-2">
-                            <i data-lucide="save" class="w-4 h-4"></i> Simpan Data
-                        </button>
-                    </div>
+                    <div><label class="block text-sm font-medium text-gray-700 mb-1">Tanggal</label><input type="date" name="tanggal" required class="w-full p-2 border border-gray-300 rounded-lg"></div>
+                    <div><label class="block text-sm font-medium text-gray-700 mb-1">Waktu</label><input type="time" name="waktu" required class="w-full p-2 border border-gray-300 rounded-lg"></div>
+                    <div class="md:col-span-2"><label class="block text-sm font-medium text-gray-700 mb-1">Nama Murid Bimbingan</label><input type="text" id="journalName" name="nama" list="dynamic_student_list" oninput="syncStudentData('journal')" placeholder="Ketik nama murid..." required class="w-full p-2 border border-gray-300 rounded-lg"><datalist id="dynamic_student_list"></datalist></div>
+                    <div><label class="block text-sm font-medium text-gray-700 mb-1">Kelas</label><input type="text" id="journalClass" name="kelas" placeholder="Contoh: XII IPA 1" required class="w-full p-2 border border-gray-300 rounded-lg"></div>
+                    <div><label class="block text-sm font-medium text-gray-700 mb-1">Tahun Ajaran</label><input type="text" id="journalAcademicYear" name="academicYear" placeholder="Contoh: 2024/2025" required class="w-full p-2 border border-gray-300 rounded-lg"></div>
+                    <div class="md:col-span-2"><label class="block text-sm font-medium text-gray-700 mb-1">Jenis Bimbingan</label><select name="jenis" required class="w-full p-2 border border-gray-300 rounded-lg bg-white"><option value="" disabled selected>-- Pilih Jenis --</option><option value="Pendampingan Akademik">Pendampingan Akademik</option><option value="Pengembangan Kompetensi">Pengembangan Kompetensi</option><option value="Pengembangan Keterampilan">Pengembangan Keterampilan</option><option value="Pembentukan Karakter">Pembentukan Karakter</option></select></div>
+                    <div class="md:col-span-2"><label class="block text-sm font-medium text-gray-700 mb-1">Topik / Permasalahan</label><textarea name="topik" rows="3" required placeholder="Deskripsikan..." class="w-full p-2 border border-gray-300 rounded-lg"></textarea></div>
+                    <div class="md:col-span-2"><label class="block text-sm font-medium text-gray-700 mb-1">Tindak Lanjut</label><textarea name="tindak_lanjut" rows="3" required placeholder="Rencana..." class="w-full p-2 border border-gray-300 rounded-lg"></textarea></div>
+                    <div class="md:col-span-2 pt-2"><button type="submit" id="btn-submit" class="w-full bg-[#F5EA5A] hover:bg-yellow-300 text-gray-900 font-bold py-3 px-4 rounded-lg shadow-md flex justify-center items-center gap-2"><i data-lucide="save" class="w-4 h-4"></i> Simpan Data</button></div>
                 </form>
-
-                <div class="mt-4">
-                    <button onclick="navigateTo('page-home')" class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-3 px-4 rounded-lg transition duration-200 flex items-center justify-center gap-2">
-                        <i data-lucide="arrow-left" class="w-4 h-4"></i> Kembali ke Home
-                    </button>
-                </div>
+                <div class="mt-4"><button onclick="navigateTo('page-home')" class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-3 px-4 rounded-lg flex items-center justify-center gap-2"><i data-lucide="arrow-left" class="w-4 h-4"></i> Kembali ke Home</button></div>
             </div>
         </div>
     </section>
 
-    <!-- ================= HALAMAN REKAP JURNAL (WIDE) ================= -->
+    <!-- Recap Page -->
     <section id="page-recap" class="hidden min-h-screen p-4 pb-10">
         <div class="max-w-7xl mx-auto fade-in">
-            <!-- Header -->
             <div class="bg-[#10B981] text-white p-6 rounded-t-2xl shadow-lg flex flex-col md:flex-row items-center justify-between gap-4 sticky top-0 z-10">
-                <div>
-                    <h2 class="font-bold text-lg">Rekap Jurnal</h2>
-                    <p class="text-xs opacity-90">Riwayat Bimbingan Murid</p>
-                </div>
+                <div><h2 class="font-bold text-lg">Rekap Jurnal</h2><p class="text-xs opacity-90">Riwayat Bimbingan Murid</p></div>
                 <div class="flex gap-2 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
-                    <button onclick="openPdfSettings()" class="bg-white/20 p-2 rounded-full hover:bg-white/30 transition flex items-center justify-center w-8 h-8 flex-shrink-0" title="Pengaturan PDF">
-                        <i data-lucide="settings" class="w-4 h-4"></i>
-                    </button>
-                    <button onclick="exportJournalToPdf()" class="bg-white/20 p-2 rounded-full hover:bg-white/30 transition flex items-center gap-1 px-3 flex-shrink-0" title="Ekspor PDF">
-                        <i data-lucide="file-text" class="w-4 h-4"></i> <span class="text-xs font-semibold">PDF</span>
-                    </button>
-                    <button onclick="exportJournalToExcel()" class="bg-white/20 p-2 rounded-full hover:bg-white/30 transition flex items-center gap-1 px-3 flex-shrink-0" title="Ekspor Excel">
-                        <i data-lucide="download" class="w-4 h-4"></i> <span class="text-xs font-semibold">Excel</span>
-                    </button>
-                    <button onclick="navigateTo('page-home')" class="bg-white/20 p-2 rounded-full hover:bg-white/30 transition flex items-center justify-center w-8 h-8 flex-shrink-0">
-                        <i data-lucide="home" class="w-4 h-4"></i>
-                    </button>
+                    <button onclick="openPdfSettings()" class="bg-white/20 p-2 rounded-full w-8 h-8 flex items-center justify-center"><i data-lucide="settings" class="w-4 h-4"></i></button>
+                    <button onclick="exportJournalToPdf()" class="bg-white/20 p-2 rounded-full flex items-center gap-1 px-3"><i data-lucide="file-text" class="w-4 h-4"></i> <span class="text-xs font-semibold">PDF</span></button>
+                    <button onclick="exportJournalToExcel()" class="bg-white/20 p-2 rounded-full flex items-center gap-1 px-3"><i data-lucide="download" class="w-4 h-4"></i> <span class="text-xs font-semibold">Excel</span></button>
+                    <button onclick="navigateTo('page-home')" class="bg-white/20 p-2 rounded-full w-8 h-8 flex items-center justify-center"><i data-lucide="home" class="w-4 h-4"></i></button>
                 </div>
             </div>
-
             <div class="bg-white p-6 rounded-b-2xl shadow-lg overflow-x-auto min-h-[400px]">
                 <table class="w-full text-sm text-left text-gray-600 border border-gray-200 rounded-lg">
-                    <thead class="text-xs text-white uppercase bg-[#10B981]">
-                        <tr>
-                            <th scope="col" class="px-4 py-3 rounded-tl-lg">No</th>
-                            <th scope="col" class="px-4 py-3">Tanggal</th>
-                            <th scope="col" class="px-4 py-3">Nama Murid</th>
-                            <th scope="col" class="px-4 py-3 hidden md:table-cell">Kelas</th>
-                            <th scope="col" class="px-4 py-3 hidden md:table-cell">Thn Ajaran</th>
-                            <th scope="col" class="px-4 py-3">Jenis</th>
-                            <th scope="col" class="px-4 py-3 hidden md:table-cell">Topik</th>
-                            <th scope="col" class="px-4 py-3 hidden md:table-cell">Tindak Lanjut</th>
-                            <th scope="col" class="px-4 py-3 rounded-tr-lg text-center w-24">Aksi</th>
-                        </tr>
-                    </thead>
-                    <tbody id="journal-recap-body" class="divide-y divide-gray-100">
-                        <!-- Content will be filled by JS -->
-                    </tbody>
+                    <thead class="text-xs text-white uppercase bg-[#10B981]"><tr><th class="px-4 py-3 rounded-tl-lg">No</th><th class="px-4 py-3">Tanggal</th><th class="px-4 py-3">Nama Murid</th><th class="px-4 py-3 hidden md:table-cell">Kelas</th><th class="px-4 py-3 hidden md:table-cell">Thn Ajaran</th><th class="px-4 py-3">Jenis</th><th class="px-4 py-3 hidden md:table-cell">Topik</th><th class="px-4 py-3 hidden md:table-cell">Tindak</th><th class="px-4 py-3 rounded-tr-lg text-center w-24">Aksi</th></tr></thead>
+                    <tbody id="journal-recap-body" class="divide-y divide-gray-100"></tbody>
                 </table>
-                <div id="empty-journal-msg" class="text-center py-8 text-gray-400 hidden">
-                    Belum ada data jurnal.
-                </div>
-
-                <div class="mt-8">
-                    <button onclick="navigateTo('page-home')" class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-3 px-4 rounded-lg transition duration-200 flex items-center justify-center gap-2">
-                        <i data-lucide="arrow-left" class="w-4 h-4"></i> Kembali ke Home
-                    </button>
-                </div>
+                <div id="empty-journal-msg" class="text-center py-8 text-gray-400 hidden">Belum ada data jurnal.</div>
+                <div class="mt-8"><button onclick="navigateTo('page-home')" class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-3 px-4 rounded-lg flex items-center justify-center gap-2"><i data-lucide="arrow-left" class="w-4 h-4"></i> Kembali ke Home</button></div>
             </div>
         </div>
     </section>
 
+    <!-- Main Logic -->
     <script>
-        // ==========================================
-        // DATA MANAGEMENT
-        // ==========================================
-        
+        // --- DATA ---
         const defaultStudents = [
             { name: "Salirah Aliska", nisn: "1234567890", class: "XII IPA 1", phone: "081234567891", address: "Jl. Mawar No. 1", academicYear: "2024/2025" },
             { name: "Sheina Najla Sabila", nisn: "2345678901", class: "XII IPA 2", phone: "081234567892", address: "Jl. Melati No. 5", academicYear: "2024/2025" },
@@ -669,182 +547,35 @@
             { name: "Muhammad Dearya", nisn: "6789012345", class: "XII IPA 3", phone: "081234567896", address: "Jl. Tulip No. 9", academicYear: "2024/2025" },
             { name: "Hardiansyah Putra", nisn: "7890123456", class: "XII IPA 3", phone: "081234567897", address: "Jl. Dahlia No. 11", academicYear: "2024/2025" }
         ];
+        const defaultPillars = [{name:"Pendampingan Akademik",icon:"book"},{name:"Pengembangan Kompetensi",icon:"award"},{name:"Pengembangan Keterampilan",icon:"pen-tool"},{name:"Pengembangan Karakter",icon:"heart"}];
+        const defaultActivities = ["Melaksanakan diskusi rutin...","Memberikan saran...","Berkoordinasi dengan guru...","Memberikan informasi...","Mendorong murid...","Observasi perilaku...","Observasi kehadiran...","Sesi diskusi...","Penanganan awal..."];
 
-        const defaultPillars = [
-            { name: "Pendampingan Akademik", icon: "book" },
-            { name: "Pengembangan Kompetensi", icon: "award" },
-            { name: "Pengembangan Keterampilan", icon: "pen-tool" },
-            { name: "Pengembangan Karakter", icon: "heart" }
-        ];
-
-        const defaultActivities = [
-            "Melaksanakan diskusi rutin, minimal satu kali setiap bulan terkait perkembangan nilai dan kendala belajar.",
-            "Memberikan saran dan strategi belajar yang efektif sesuai kebutuhan murid.",
-            "Berkoordinasi dengan guru mata pelajaran lain jika murid mengalami kesulitan pada bidang tertentu.",
-            "Memberikan informasi serta rekomendasi kegiatan ekstrakurikuler, lomba atau seminar yang sesuai dengan kebutuhan murid.",
-            "Mendorong murid untuk berpartisipasi aktif dalam organisasi atau kepanitiaan.",
-            "Melakukan observasi terhadap perilaku dan sikap murid dalam keseharian di sekolah.",
-            "Melakukan observasi terhadap kehadiran murid di sekolah.",
-            "Mengadakan sesi diskusi atau konseling.",
-            "Melakukan penanganan awal jika ditemukan indikasi masalah perilaku serta berkoordinasi dengan guru BK dan wali kelas untuk tindak lanjut."
-        ];
-
-        let students = JSON.parse(localStorage.getItem('guruWali_students')) || defaultStudents;
-        let journals = JSON.parse(localStorage.getItem('guruWali_journals')) || [];
-        let pillars = JSON.parse(localStorage.getItem('guruWali_pillars')) || defaultPillars;
-        let activities = JSON.parse(localStorage.getItem('guruWali_activities')) || defaultActivities;
-
-        // Default PDF Settings
-        let pdfSettings = JSON.parse(localStorage.getItem('guruWali_pdfSettings')) || {
-            pageSize: 'a4',
-            orientation: 'landscape',
-            marginTop: 15,
-            marginRight: 15,
-            marginBottom: 15,
-            marginLeft: 15
-        };
-
-        // --- SAVE FUNCTIONS ---
-        function saveToLocalStorage() {
-            localStorage.setItem('guruWali_students', JSON.stringify(students));
-            renderFilterOptions(); 
-            renderStudents();
-            renderJournalDatalist(); 
-        }
-
-        function saveJournalLocalStorage() {
-            localStorage.setItem('guruWali_journals', JSON.stringify(journals));
-            renderJournalRecap();
-        }
-
-        function saveProgramData() {
-            localStorage.setItem('guruWali_pillars', JSON.stringify(pillars));
-            localStorage.setItem('guruWali_activities', JSON.stringify(activities));
-            renderProgram();
-        }
-
-        function savePdfSettings() {
-            localStorage.setItem('guruWali_pdfSettings', JSON.stringify(pdfSettings));
-        }
-
-        // --- PDF LOGIC ---
-        function openPdfSettings() {
-            document.getElementById('pdfSize').value = pdfSettings.pageSize;
-            document.querySelector(`input[name="pdfOrientation"][value="${pdfSettings.orientation}"]`).checked = true;
-            document.getElementById('pdfMarginTop').value = pdfSettings.marginTop;
-            document.getElementById('pdfMarginRight').value = pdfSettings.marginRight;
-            document.getElementById('pdfMarginBottom').value = pdfSettings.marginBottom;
-            document.getElementById('pdfMarginLeft').value = pdfSettings.marginLeft;
-            document.getElementById('pdfSettingsModal').classList.remove('hidden');
-        }
-
-        function closePdfSettings() {
-            // Save settings from inputs
-            pdfSettings.pageSize = document.getElementById('pdfSize').value;
-            pdfSettings.orientation = document.querySelector('input[name="pdfOrientation"]:checked').value;
-            pdfSettings.marginTop = Number(document.getElementById('pdfMarginTop').value);
-            pdfSettings.marginRight = Number(document.getElementById('pdfMarginRight').value);
-            pdfSettings.marginBottom = Number(document.getElementById('pdfMarginBottom').value);
-            pdfSettings.marginLeft = Number(document.getElementById('pdfMarginLeft').value);
-            
-            savePdfSettings();
-            document.getElementById('pdfSettingsModal').classList.add('hidden');
-            showToast('Tersimpan', 'Pengaturan PDF diperbarui', 'success');
-        }
-
-        function exportJournalToPdf() {
-            if (journals.length === 0) { Swal.fire('Info', 'Belum ada data jurnal.', 'info'); return; }
-
-            const { jsPDF } = window.jspdf;
-            
-            // Handle Custom Size for F4 (Approx 215mm x 330mm)
-            let format = pdfSettings.pageSize;
-            if (format === 'f4') format = [215, 330]; 
-
-            const doc = new jsPDF({
-                orientation: pdfSettings.orientation,
-                unit: 'mm',
-                format: format
-            });
-
-            // Header
-            doc.setFontSize(16);
-            doc.text("Rekap Jurnal Guru Wali", pdfSettings.marginLeft, pdfSettings.marginTop);
-            doc.setFontSize(12);
-            doc.text("Dwik Setyawan, S.Pd.", pdfSettings.marginLeft, pdfSettings.marginTop + 7);
-
-            // Data
-            const headers = [['No', 'Tanggal', 'Waktu', 'Nama Murid', 'Kelas', 'Thn Ajaran', 'Jenis', 'Topik', 'Tindak Lanjut']];
-            const data = journals.map((j, index) => [
-                index + 1,
-                j.tanggal,
-                j.waktu,
-                j.nama,
-                j.kelas,
-                j.academicYear || '-',
-                j.jenis,
-                j.topik,
-                j.tindak_lanjut
-            ]);
-
-            doc.autoTable({
-                head: headers,
-                body: data,
-                startY: pdfSettings.marginTop + 15,
-                margin: { top: pdfSettings.marginTop, right: pdfSettings.marginRight, bottom: pdfSettings.marginBottom, left: pdfSettings.marginLeft },
-                styles: { fontSize: 8, cellPadding: 2 },
-                headStyles: { fillColor: [16, 185, 129] }, // Emerald color
-                theme: 'grid'
-            });
-
-            doc.save(`Jurnal_Wali_${new Date().toISOString().slice(0,10)}.pdf`);
-            showToast('Berhasil', 'PDF telah diunduh.', 'success');
-        }
+        // PDF Settings (stored in local storage as preference is per device usually, but can be DB)
+        let pdfSettings = JSON.parse(localStorage.getItem('guruWali_pdfSettings')) || { pageSize: 'a4', orientation: 'landscape', marginTop: 15, marginRight: 15, marginBottom: 15, marginLeft: 15 };
 
         // --- RENDER FUNCTIONS ---
-        
-        function renderFilterOptions() {
-            const filterSelect = document.getElementById('filterAcademicYear');
-            const currentVal = filterSelect.value;
-            const years = [...new Set(students.map(s => s.academicYear || "-"))].sort().reverse();
-            filterSelect.innerHTML = '<option value="all">Semua Tahun</option>';
-            years.forEach(year => {
-                const option = document.createElement('option');
-                option.value = year;
-                option.textContent = year === "-" ? "Tanpa Tahun" : year;
-                filterSelect.appendChild(option);
-            });
-            if ([...filterSelect.options].some(o => o.value === currentVal)) filterSelect.value = currentVal;
-        }
-
         function renderStudents() {
             const container = document.getElementById('student-list-container');
             const filterValue = document.getElementById('filterAcademicYear').value;
             container.innerHTML = '';
             
-            const filteredStudents = students.map((s, i) => ({...s, originalIndex: i}))
-                                           .filter(s => filterValue === 'all' || (s.academicYear || "-") === filterValue);
+            const filteredStudents = window.students.filter(s => filterValue === 'all' || (s.academicYear || "-") === filterValue);
 
             if (filteredStudents.length === 0) {
                 container.innerHTML = '<p class="text-center text-gray-400 py-4 col-span-full">Belum ada data murid.</p>';
                 return;
             }
 
-            filteredStudents.forEach((student) => {
+            filteredStudents.forEach((student, index) => {
                 const el = document.createElement('div');
                 el.className = 'bg-white border border-gray-100 rounded-lg p-4 shadow-sm hover:shadow-md transition duration-200 relative group';
-                
-                // Construct Image Src (Default or Custom)
                 const imgSrc = student.photo ? student.photo : '';
-                const imgDisplay = imgSrc ? `<img src="${imgSrc}" class="w-full h-full object-cover">` : 
-                                            `<div class="w-full h-full flex items-center justify-center bg-pink-100 text-[#FF78F0] font-bold text-lg">${student.originalIndex + 1}</div>`;
+                const imgDisplay = imgSrc ? `<img src="${imgSrc}" class="w-full h-full object-cover">` : `<div class="w-full h-full flex items-center justify-center bg-pink-100 text-[#FF78F0] font-bold text-lg">${index + 1}</div>`;
 
                 el.innerHTML = `
                     <div class="flex justify-between items-start">
                         <div class="flex items-start gap-3 w-full">
-                            <div class="w-12 h-12 rounded-full bg-gray-100 flex-shrink-0 overflow-hidden border border-gray-100">
-                                ${imgDisplay}
-                            </div>
+                            <div class="w-12 h-12 rounded-full bg-gray-100 flex-shrink-0 overflow-hidden border border-gray-100">${imgDisplay}</div>
                             <div class="flex-1 min-w-0">
                                 <h4 class="font-bold text-gray-800 truncate">${student.name}</h4>
                                 <div class="flex items-center gap-2 flex-wrap">
@@ -859,8 +590,8 @@
                             </div>
                         </div>
                         <div class="flex gap-1 flex-shrink-0 ml-2">
-                            <button onclick="editStudent(${student.originalIndex})" class="text-gray-400 hover:text-blue-500 transition p-1"><i data-lucide="pencil" class="w-4 h-4"></i></button>
-                            <button onclick="deleteStudent(${student.originalIndex})" class="text-gray-400 hover:text-red-500 transition p-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                            <button onclick="editStudent('${student.id}')" class="text-gray-400 hover:text-blue-500 transition p-1"><i data-lucide="pencil" class="w-4 h-4"></i></button>
+                            <button onclick="deleteStudent('${student.id}')" class="text-gray-400 hover:text-red-500 transition p-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
                         </div>
                     </div>`;
                 container.appendChild(el);
@@ -868,38 +599,35 @@
             lucide.createIcons();
         }
 
+        function renderFilterOptions() {
+            const filterSelect = document.getElementById('filterAcademicYear');
+            const currentVal = filterSelect.value;
+            const years = [...new Set(window.students.map(s => s.academicYear || "-"))].sort().reverse();
+            filterSelect.innerHTML = '<option value="all">Semua Tahun</option>';
+            years.forEach(year => {
+                const option = document.createElement('option');
+                option.value = year;
+                option.textContent = year === "-" ? "Tanpa Tahun" : year;
+                filterSelect.appendChild(option);
+            });
+            if ([...filterSelect.options].some(o => o.value === currentVal)) filterSelect.value = currentVal;
+        }
+
         function renderProgram() {
             const pillarContainer = document.getElementById('pillar-container');
             pillarContainer.innerHTML = '';
-            pillars.forEach((pillar, index) => {
+            window.pillars.forEach((pillar, index) => {
                 const el = document.createElement('div');
                 el.className = 'bg-purple-50 p-3 rounded-lg border-l-4 border-[#A31ACB] flex items-center justify-between group';
-                el.innerHTML = `
-                    <div class="flex items-center gap-2">
-                        <i data-lucide="${pillar.icon}" class="w-4 h-4 text-[#A31ACB]"></i>
-                        <span class="text-sm font-medium">${pillar.name}</span>
-                    </div>
-                    <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition">
-                         <button onclick="editPillar(${index})" class="text-gray-400 hover:text-blue-500"><i data-lucide="pencil" class="w-3 h-3"></i></button>
-                         <button onclick="deletePillar(${index})" class="text-gray-400 hover:text-red-500"><i data-lucide="trash-2" class="w-3 h-3"></i></button>
-                    </div>`;
+                el.innerHTML = `<div class="flex items-center gap-2"><i data-lucide="${pillar.icon}" class="w-4 h-4 text-[#A31ACB]"></i><span class="text-sm font-medium">${pillar.name}</span></div><div class="flex gap-1 opacity-0 group-hover:opacity-100 transition"><button onclick="editPillar(${index})" class="text-gray-400 hover:text-blue-500"><i data-lucide="pencil" class="w-3 h-3"></i></button><button onclick="deletePillar(${index})" class="text-gray-400 hover:text-red-500"><i data-lucide="trash-2" class="w-3 h-3"></i></button></div>`;
                 pillarContainer.appendChild(el);
             });
-
             const activityTbody = document.getElementById('activity-tbody');
             activityTbody.innerHTML = '';
-            activities.forEach((activity, index) => {
+            window.activities.forEach((activity, index) => {
                 const row = document.createElement('tr');
                 row.className = index % 2 === 0 ? 'bg-white hover:bg-gray-50' : 'bg-purple-50 hover:bg-purple-100';
-                row.innerHTML = `
-                    <td class="px-4 py-3 text-center font-bold text-[#A31ACB]">${index + 1}</td>
-                    <td class="px-4 py-3">${activity}</td>
-                    <td class="px-4 py-3 text-center">
-                        <div class="flex justify-center gap-2">
-                             <button onclick="editActivity(${index})" class="text-gray-400 hover:text-blue-500"><i data-lucide="pencil" class="w-3 h-3"></i></button>
-                             <button onclick="deleteActivity(${index})" class="text-gray-400 hover:text-red-500"><i data-lucide="trash-2" class="w-3 h-3"></i></button>
-                        </div>
-                    </td>`;
+                row.innerHTML = `<td class="px-4 py-3 text-center font-bold text-[#A31ACB]">${index + 1}</td><td class="px-4 py-3">${activity}</td><td class="px-4 py-3 text-center"><div class="flex justify-center gap-2"><button onclick="editActivity(${index})" class="text-gray-400 hover:text-blue-500"><i data-lucide="pencil" class="w-3 h-3"></i></button><button onclick="deleteActivity(${index})" class="text-gray-400 hover:text-red-500"><i data-lucide="trash-2" class="w-3 h-3"></i></button></div></td>`;
                 activityTbody.appendChild(row);
             });
             lucide.createIcons();
@@ -909,44 +637,26 @@
             const tbody = document.getElementById('journal-recap-body');
             const emptyMsg = document.getElementById('empty-journal-msg');
             tbody.innerHTML = '';
-
-            if (journals.length === 0) {
-                emptyMsg.classList.remove('hidden');
-            } else {
+            if (window.journals.length === 0) { emptyMsg.classList.remove('hidden'); } 
+            else {
                 emptyMsg.classList.add('hidden');
-                const displayedJournals = journals.map((j, i) => ({...j, originalIndex: i})).reverse();
-                
-                displayedJournals.forEach((j, index) => {
+                window.journals.forEach((j, index) => {
                     const row = document.createElement('tr');
                     row.className = "bg-white hover:bg-gray-50 border-b border-gray-100";
-                    row.innerHTML = `
-                        <td class="px-4 py-3 font-bold text-emerald-600 text-center">${displayedJournals.length - index}</td>
-                        <td class="px-4 py-3 whitespace-nowrap">${j.tanggal} <span class="text-xs text-gray-400 block">${j.waktu}</span></td>
-                        <td class="px-4 py-3 font-medium text-gray-800">${j.nama}</td>
-                        <td class="px-4 py-3 hidden md:table-cell">${j.kelas}</td>
-                        <td class="px-4 py-3 text-xs text-gray-600 hidden md:table-cell">${j.academicYear || '-'}</td>
-                        <td class="px-4 py-3"><span class="bg-emerald-100 text-emerald-800 text-xs px-2 py-1 rounded-full whitespace-nowrap">${j.jenis}</span></td>
-                        <td class="px-4 py-3 max-w-xs truncate hidden md:table-cell" title="${j.topik}">${j.topik}</td>
-                        <td class="px-4 py-3 max-w-xs truncate hidden md:table-cell" title="${j.tindak_lanjut}">${j.tindak_lanjut}</td>
-                        <td class="px-4 py-3 text-center">
-                            <div class="flex items-center justify-center gap-2">
-                                <button onclick="editJournal(${j.originalIndex})" class="text-gray-400 hover:text-blue-500 transition p-1"><i data-lucide="pencil" class="w-4 h-4"></i></button>
-                                <button onclick="deleteJournal(${j.originalIndex})" class="text-gray-400 hover:text-red-500 transition p-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
-                            </div>
-                        </td>`;
+                    row.innerHTML = `<td class="px-4 py-3 font-bold text-emerald-600 text-center">${window.journals.length - index}</td><td class="px-4 py-3 whitespace-nowrap">${j.tanggal} <span class="text-xs text-gray-400 block">${j.waktu}</span></td><td class="px-4 py-3 font-medium text-gray-800">${j.nama}</td><td class="px-4 py-3 hidden md:table-cell">${j.kelas}</td><td class="px-4 py-3 text-xs text-gray-600 hidden md:table-cell">${j.academicYear || '-'}</td><td class="px-4 py-3"><span class="bg-emerald-100 text-emerald-800 text-xs px-2 py-1 rounded-full whitespace-nowrap">${j.jenis}</span></td><td class="px-4 py-3 max-w-xs truncate hidden md:table-cell" title="${j.topik}">${j.topik}</td><td class="px-4 py-3 max-w-xs truncate hidden md:table-cell" title="${j.tindak_lanjut}">${j.tindak_lanjut}</td><td class="px-4 py-3 text-center"><div class="flex items-center justify-center gap-2"><button onclick="editJournal('${j.id}')" class="text-gray-400 hover:text-blue-500 transition p-1"><i data-lucide="pencil" class="w-4 h-4"></i></button><button onclick="deleteJournal('${j.id}')" class="text-gray-400 hover:text-red-500 transition p-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button></div></td>`;
                     tbody.appendChild(row);
                 });
             }
             lucide.createIcons();
         }
-        
+
         function renderJournalDatalist() {
             const listIds = ['dynamic_student_list', 'dynamic_student_list_modal'];
             listIds.forEach(id => {
                 const datalist = document.getElementById(id);
                 if (datalist) {
                     datalist.innerHTML = '';
-                    students.forEach(student => {
+                    window.students.forEach(student => {
                         const option = document.createElement('option');
                         option.value = student.name;
                         datalist.appendChild(option);
@@ -955,108 +665,139 @@
             });
         }
 
-        // ==========================================
-        // PROGRAM CRUD LOGIC
-        // ==========================================
+        // --- CRUD LOGIC Handlers ---
+        
+        function openAddModal() {
+            document.getElementById('studentId').value = ''; 
+            document.getElementById('modal-title').innerText = 'Tambah Murid Baru';
+            document.getElementById('studentName').value = '';
+            document.getElementById('studentNisn').value = '';
+            document.getElementById('studentClass').value = '';
+            document.getElementById('studentPhone').value = '';
+            document.getElementById('studentAddress').value = '';
+            document.getElementById('studentAcademicYear').value = '2024/2025';
+            document.getElementById('studentPhoto').value = '';
+            document.getElementById('studentPhotoPreview').src = '';
+            document.getElementById('studentPhotoPreview').classList.add('hidden');
+            document.getElementById('studentPhotoPlaceholder').classList.remove('hidden');
+            document.getElementById('studentModal').classList.remove('hidden');
+        }
+        function closeStudentModal() { document.getElementById('studentModal').classList.add('hidden'); }
+        
+        function editStudent(id) {
+            const student = window.students.find(s => s.id === id);
+            if (!student) return;
+            document.getElementById('studentId').value = id;
+            document.getElementById('modal-title').innerText = 'Edit Data Murid';
+            document.getElementById('studentName').value = student.name;
+            document.getElementById('studentNisn').value = student.nisn || "";
+            document.getElementById('studentClass').value = student.class;
+            document.getElementById('studentPhone').value = student.phone;
+            document.getElementById('studentAddress').value = student.address;
+            document.getElementById('studentAcademicYear').value = student.academicYear || "2024/2025";
+            const preview = document.getElementById('studentPhotoPreview');
+            const placeholder = document.getElementById('studentPhotoPlaceholder');
+            if (student.photo) { preview.src = student.photo; preview.classList.remove('hidden'); placeholder.classList.add('hidden'); } 
+            else { preview.src = ''; preview.classList.add('hidden'); placeholder.classList.remove('hidden'); }
+            document.getElementById('studentPhoto').value = '';
+            document.getElementById('studentModal').classList.remove('hidden');
+        }
 
-        function openPillarModal() {
-            document.getElementById('pillarIndex').value = '-1';
-            document.getElementById('pillarModalTitle').innerText = 'Tambah Pilar';
-            document.getElementById('pillarName').value = '';
-            document.getElementById('pillarIcon').value = 'book';
-            document.getElementById('pillarModal').classList.remove('hidden');
+        function saveStudent() {
+            const id = document.getElementById('studentId').value;
+            const name = document.getElementById('studentName').value;
+            const nisn = document.getElementById('studentNisn').value;
+            const className = document.getElementById('studentClass').value;
+            const phone = document.getElementById('studentPhone').value;
+            const address = document.getElementById('studentAddress').value;
+            const academicYear = document.getElementById('studentAcademicYear').value;
+            const photoInput = document.getElementById('studentPhoto');
+
+            if (!name || !className) { Swal.fire('Oops...', 'Nama dan Kelas wajib diisi!', 'error'); return; }
+
+            const finalizeSave = (photoData) => {
+                const studentData = { name, nisn, class: className, phone, address, academicYear, photo: photoData };
+                window.saveStudentDB(studentData, id || null);
+            };
+
+            if (photoInput.files && photoInput.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) { finalizeSave(e.target.result); };
+                reader.readAsDataURL(photoInput.files[0]);
+            } else {
+                let existingPhoto = null;
+                if (id) { const s = window.students.find(s => s.id === id); if(s) existingPhoto = s.photo; }
+                finalizeSave(existingPhoto);
+            }
         }
-        function closePillarModal() { document.getElementById('pillarModal').classList.add('hidden'); }
-        function editPillar(index) {
-            document.getElementById('pillarIndex').value = index;
-            document.getElementById('pillarModalTitle').innerText = 'Edit Pilar';
-            document.getElementById('pillarName').value = pillars[index].name;
-            document.getElementById('pillarIcon').value = pillars[index].icon;
-            document.getElementById('pillarModal').classList.remove('hidden');
+
+        function deleteStudent(id) {
+            Swal.fire({ title: 'Hapus data?', icon: 'warning', showCancelButton: true, confirmButtonText: 'Ya, Hapus!', }).then((result) => {
+                if (result.isConfirmed) { window.deleteStudentDB(id); }
+            });
         }
+
+        function previewImage(input) {
+            const preview = document.getElementById('studentPhotoPreview');
+            const placeholder = document.getElementById('studentPhotoPlaceholder');
+            const file = input.files[0];
+            if (file) {
+                if (file.size > 500 * 1024) {
+                    Swal.fire({ icon: 'error', title: 'File Terlalu Besar', text: 'Maksimal 500KB!', confirmButtonColor: '#FF78F0' });
+                    input.value = ''; preview.src = ''; preview.classList.add('hidden'); placeholder.classList.remove('hidden');
+                    return;
+                }
+                const reader = new FileReader();
+                reader.onload = function(e) { preview.src = e.target.result; preview.classList.remove('hidden'); placeholder.classList.add('hidden'); }
+                reader.readAsDataURL(file);
+            }
+        }
+
+        // Program Logic
         function savePillar() {
             const index = parseInt(document.getElementById('pillarIndex').value);
             const name = document.getElementById('pillarName').value;
             const icon = document.getElementById('pillarIcon').value;
-            if (!name) { Swal.fire('Error', 'Nama pilar wajib diisi', 'error'); return; }
+            if (!name) return;
             const data = { name, icon };
-            if (index === -1) pillars.push(data); else pillars[index] = data;
-            saveProgramData();
+            if (index === -1) window.pillars.push(data); else window.pillars[index] = data;
+            window.saveProgramDB('pillars', window.pillars);
             closePillarModal();
-            showToast('Berhasil', 'Data pilar disimpan', 'success');
         }
         function deletePillar(index) {
-            Swal.fire({ title: 'Hapus Pilar?', icon: 'warning', showCancelButton: true, confirmButtonText: 'Ya, Hapus' }).then(res => {
-                if(res.isConfirmed) { pillars.splice(index, 1); saveProgramData(); showToast('Terhapus', 'Pilar dihapus', 'success'); }
+            Swal.fire({ title: 'Hapus?', icon: 'warning', showCancelButton: true, confirmButtonText: 'Ya' }).then(res => {
+                if(res.isConfirmed) { window.pillars.splice(index, 1); window.saveProgramDB('pillars', window.pillars); }
             });
         }
-
-        function openActivityModal() {
-            document.getElementById('activityIndex').value = '-1';
-            document.getElementById('activityModalTitle').innerText = 'Tambah Kegiatan';
-            document.getElementById('activityDesc').value = '';
-            document.getElementById('activityModal').classList.remove('hidden');
-        }
-        function closeActivityModal() { document.getElementById('activityModal').classList.add('hidden'); }
-        function editActivity(index) {
-            document.getElementById('activityIndex').value = index;
-            document.getElementById('activityModalTitle').innerText = 'Edit Kegiatan';
-            document.getElementById('activityDesc').value = activities[index];
-            document.getElementById('activityModal').classList.remove('hidden');
-        }
+        // ... (Similar logic for activities)
         function saveActivity() {
             const index = parseInt(document.getElementById('activityIndex').value);
             const desc = document.getElementById('activityDesc').value;
-            if (!desc) { Swal.fire('Error', 'Deskripsi wajib diisi', 'error'); return; }
-            if (index === -1) activities.push(desc); else activities[index] = desc;
-            saveProgramData();
+            if(!desc) return;
+            if(index === -1) window.activities.push(desc); else window.activities[index] = desc;
+            window.saveProgramDB('activities', window.activities);
             closeActivityModal();
-            showToast('Berhasil', 'Kegiatan disimpan', 'success');
         }
         function deleteActivity(index) {
-             Swal.fire({ title: 'Hapus Kegiatan?', icon: 'warning', showCancelButton: true, confirmButtonText: 'Ya, Hapus' }).then(res => {
-                if(res.isConfirmed) { activities.splice(index, 1); saveProgramData(); showToast('Terhapus', 'Kegiatan dihapus', 'success'); }
+             Swal.fire({ title: 'Hapus?', icon: 'warning', showCancelButton: true, confirmButtonText: 'Ya' }).then(res => {
+                if(res.isConfirmed) { window.activities.splice(index, 1); window.saveProgramDB('activities', window.activities); }
             });
         }
 
-        // ==========================================
-        // OTHER LOGIC (Students, Journal, etc)
-        // ==========================================
-
-        function syncStudentData(prefix) {
-            const nameInput = document.getElementById(prefix + 'Name');
-            const classInput = document.getElementById(prefix + 'Class');
-            const academicYearInput = document.getElementById(prefix + 'AcademicYear');
-            const selectedName = nameInput.value;
-            const student = students.find(s => s.name === selectedName);
-            if (student) {
-                classInput.value = student.class; classInput.classList.add('bg-yellow-50');
-                if (academicYearInput) { academicYearInput.value = student.academicYear || ""; academicYearInput.classList.add('bg-yellow-50'); }
-                setTimeout(() => { classInput.classList.remove('bg-yellow-50'); if(academicYearInput) academicYearInput.classList.remove('bg-yellow-50'); }, 500);
-            }
-        }
-
+        // Journal Logic
         function submitJournal(e) {
             e.preventDefault();
-            const btn = document.getElementById('btn-submit');
-            const originalBtnText = btn.innerHTML;
-            btn.disabled = true;
-            btn.innerHTML = `Menyimpan...`;
             const form = document.getElementById('journalForm');
             const formData = new FormData(form);
             const data = Object.fromEntries(formData.entries());
-            journals.push(data);
-            saveJournalLocalStorage();
-            setTimeout(() => {
-                showToast('Berhasil!', 'Data tersimpan di Rekap Jurnal.', 'success');
-                form.reset(); btn.disabled = false; btn.innerHTML = originalBtnText;
-                navigateTo('page-recap');
-            }, 800);
+            window.saveJournalDB(data);
+            form.reset();
+            setTimeout(() => navigateTo('page-recap'), 500);
         }
-
-        function editJournal(index) {
-            const journal = journals[index];
-            document.getElementById('editJournalIndex').value = index;
+        function editJournal(id) {
+            const journal = window.journals.find(j => j.id === id);
+            if (!journal) return;
+            document.getElementById('editJournalId').value = id;
             document.getElementById('editJournalDate').value = journal.tanggal;
             document.getElementById('editJournalTime').value = journal.waktu;
             document.getElementById('editJournalName').value = journal.nama;
@@ -1069,7 +810,7 @@
         }
         function closeJournalModal() { document.getElementById('journalModal').classList.add('hidden'); }
         function saveJournalEdit() {
-            const index = parseInt(document.getElementById('editJournalIndex').value);
+            const id = document.getElementById('editJournalId').value;
             const updatedJournal = {
                 tanggal: document.getElementById('editJournalDate').value,
                 waktu: document.getElementById('editJournalTime').value,
@@ -1080,37 +821,42 @@
                 topik: document.getElementById('editJournalTopic').value,
                 tindak_lanjut: document.getElementById('editJournalAction').value
             };
-            if (!updatedJournal.tanggal || !updatedJournal.nama) { Swal.fire('Oops...', 'Isi data!', 'error'); return; }
-            journals[index] = updatedJournal;
-            saveJournalLocalStorage();
-            closeJournalModal();
-            showToast('Berhasil', 'Data jurnal diperbarui', 'success');
+            window.saveJournalDB(updatedJournal, id);
         }
-        function deleteJournal(index) {
-            Swal.fire({ title: 'Hapus Jurnal?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'Ya, Hapus!' }).then((result) => {
-                if (result.isConfirmed) { journals.splice(index, 1); saveJournalLocalStorage(); Swal.fire('Terhapus!', 'Data jurnal telah dihapus.', 'success'); }
+        function deleteJournal(id) {
+            Swal.fire({ title: 'Hapus?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'Ya' }).then((result) => {
+                if (result.isConfirmed) { window.deleteJournalDB(id); }
             });
         }
 
+        // --- Helpers ---
+        function syncStudentData(prefix) {
+            const nameInput = document.getElementById(prefix + 'Name');
+            const classInput = document.getElementById(prefix + 'Class');
+            const academicYearInput = document.getElementById(prefix + 'AcademicYear');
+            const student = window.students.find(s => s.name === nameInput.value);
+            if (student) {
+                classInput.value = student.class; classInput.classList.add('bg-yellow-50');
+                if (academicYearInput) { academicYearInput.value = student.academicYear || ""; academicYearInput.classList.add('bg-yellow-50'); }
+                setTimeout(() => { classInput.classList.remove('bg-yellow-50'); if(academicYearInput) academicYearInput.classList.remove('bg-yellow-50'); }, 500);
+            }
+        }
+
         function exportToExcel() {
-            const excelData = students.map((s, index) => ({ "No": index + 1, "NISN": s.nisn || "-", "Nama": s.name, "Kelas": s.class, "HP": s.phone, "Alamat": s.address, "Tahun Ajaran": s.academicYear || "-" }));
+            const excelData = window.students.map((s, index) => ({ "No": index + 1, "NISN": s.nisn || "-", "Nama": s.name, "Kelas": s.class, "HP": s.phone, "Alamat": s.address, "Tahun Ajaran": s.academicYear || "-" }));
             const worksheet = XLSX.utils.json_to_sheet(excelData);
             const workbook = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(workbook, worksheet, "Daftar Murid");
             XLSX.writeFile(workbook, `Data_Murid_${new Date().toISOString().slice(0, 10)}.xlsx`);
-            showToast('Berhasil', 'File Excel Murid diunduh.', 'success');
         }
 
         function exportJournalToExcel() {
-            if (journals.length === 0) { Swal.fire('Info', 'Belum ada data.', 'info'); return; }
-            const excelData = journals.map((j, index) => ({ 
-                "No": index + 1, "Tanggal": j.tanggal, "Waktu": j.waktu, "Nama Siswa": j.nama, "Kelas": j.kelas, "Tahun Ajaran": j.academicYear, "Jenis Bimbingan": j.jenis, "Topik": j.topik, "Tindak Lanjut": j.tindak_lanjut
-            }));
+            if (window.journals.length === 0) { Swal.fire('Info', 'Belum ada data.', 'info'); return; }
+            const excelData = window.journals.map((j, index) => ({ "No": index + 1, "Tanggal": j.tanggal, "Waktu": j.waktu, "Nama Siswa": j.nama, "Kelas": j.kelas, "Tahun Ajaran": j.academicYear, "Jenis Bimbingan": j.jenis, "Topik": j.topik, "Tindak Lanjut": j.tindak_lanjut }));
             const worksheet = XLSX.utils.json_to_sheet(excelData);
             const workbook = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(workbook, worksheet, "Rekap Jurnal");
             XLSX.writeFile(workbook, `Rekap_Jurnal_${new Date().toISOString().slice(0, 10)}.xlsx`);
-            showToast('Berhasil', 'File Excel Jurnal diunduh.', 'success');
         }
 
         function handleFileImport(input) {
@@ -1124,27 +870,20 @@
                     const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
                     if (jsonData.length === 0) { Swal.fire('Gagal', 'File kosong.', 'error'); return; }
                     Swal.fire({
-                        title: 'Impor Data?',
-                        text: `Ditemukan ${jsonData.length} data. Ganti semua atau tambahkan?`,
-                        icon: 'question',
-                        showCancelButton: true,
-                        showDenyButton: true,
-                        confirmButtonText: 'Ganti Semua',
-                        denyButtonText: 'Tambahkan',
+                        title: 'Impor Data?', text: `Ditemukan ${jsonData.length} data. Tambahkan ke database?`, icon: 'question', showCancelButton: true, confirmButtonText: 'Ya, Tambahkan'
                     }).then((result) => {
-                        if (result.isConfirmed || result.isDenied) {
-                            const newStudents = jsonData.map(row => ({
-                                name: row["Nama Lengkap"] || row["nama"] || row["Nama"] || "Tanpa Nama",
-                                nisn: row["NISN"] || row["nisn"] || "-",
-                                class: row["Kelas"] || row["kelas"] || "-",
-                                phone: row["No HP / WA"] || row["hp"] || "-",
-                                address: row["Alamat"] || row["alamat"] || "-",
-                                academicYear: row["Tahun Ajaran"] || row["tahun"] || "2024/2025"
-                            }));
-                            if (result.isConfirmed) students = newStudents;
-                            else if (result.isDenied) students = [...students, ...newStudents];
-                            saveToLocalStorage();
-                            showToast('Berhasil', 'Data berhasil diimpor.', 'success');
+                        if (result.isConfirmed) {
+                            jsonData.forEach(row => {
+                                const newStudent = {
+                                    name: row["Nama Lengkap"] || row["nama"] || row["Nama"] || "Tanpa Nama",
+                                    nisn: row["NISN"] || row["nisn"] || "-",
+                                    class: row["Kelas"] || row["kelas"] || "-",
+                                    phone: row["No HP / WA"] || row["hp"] || "-",
+                                    address: row["Alamat"] || row["alamat"] || "-",
+                                    academicYear: row["Tahun Ajaran"] || row["tahun"] || "2024/2025"
+                                };
+                                window.saveStudentDB(newStudent);
+                            });
                         }
                     });
                 } catch (error) { Swal.fire('Error', 'Gagal membaca file.', 'error'); }
@@ -1153,174 +892,61 @@
             reader.readAsArrayBuffer(file);
         }
 
-        function openAddModal() {
-            document.getElementById('studentIndex').value = '-1'; 
-            document.getElementById('modal-title').innerText = 'Tambah Murid Baru';
-            document.getElementById('studentName').value = '';
-            document.getElementById('studentNisn').value = '';
-            document.getElementById('studentClass').value = '';
-            document.getElementById('studentPhone').value = '';
-            document.getElementById('studentAddress').value = '';
-            document.getElementById('studentAcademicYear').value = '2024/2025';
-            
-            // Reset Photo
-            document.getElementById('studentPhoto').value = '';
-            document.getElementById('studentPhotoPreview').src = '';
-            document.getElementById('studentPhotoPreview').classList.add('hidden');
-            document.getElementById('studentPhotoPlaceholder').classList.remove('hidden');
-            
-            document.getElementById('studentModal').classList.remove('hidden');
-        }
-        function closeStudentModal() { document.getElementById('studentModal').classList.add('hidden'); }
-        function editStudent(index) {
-            const student = students[index];
-            document.getElementById('studentIndex').value = index;
-            document.getElementById('modal-title').innerText = 'Edit Data Murid';
-            document.getElementById('studentName').value = student.name;
-            document.getElementById('studentNisn').value = student.nisn || "";
-            document.getElementById('studentClass').value = student.class;
-            document.getElementById('studentPhone').value = student.phone;
-            document.getElementById('studentAddress').value = student.address;
-            document.getElementById('studentAcademicYear').value = student.academicYear || "2024/2025";
-            
-            // Set Photo Preview
-            const preview = document.getElementById('studentPhotoPreview');
-            const placeholder = document.getElementById('studentPhotoPlaceholder');
-            
-            if (student.photo) {
-                preview.src = student.photo;
-                preview.classList.remove('hidden');
-                placeholder.classList.add('hidden');
-            } else {
-                preview.src = '';
-                preview.classList.add('hidden');
-                placeholder.classList.remove('hidden');
-            }
-            document.getElementById('studentPhoto').value = ''; // Reset input to allow re-uploading same file if needed
-            
-            document.getElementById('studentModal').classList.remove('hidden');
-        }
+        // Modal Helpers (duplicated for clarity if needed, or reused from above)
+        function openPillarModal() { document.getElementById('pillarIndex').value = '-1'; document.getElementById('pillarName').value = ''; document.getElementById('pillarModal').classList.remove('hidden'); }
+        function closePillarModal() { document.getElementById('pillarModal').classList.add('hidden'); }
+        function editPillar(index) { document.getElementById('pillarIndex').value = index; document.getElementById('pillarName').value = window.pillars[index].name; document.getElementById('pillarIcon').value = window.pillars[index].icon; document.getElementById('pillarModal').classList.remove('hidden'); }
         
-        // Image Preview Handler
-        function previewImage(input) {
-            const preview = document.getElementById('studentPhotoPreview');
-            const placeholder = document.getElementById('studentPhotoPlaceholder');
-            const file = input.files[0];
-
-            if (file) {
-                // Validasi Ukuran (500KB = 500 * 1024 bytes)
-                if (file.size > 500 * 1024) {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'File Terlalu Besar',
-                        text: 'Ukuran foto maksimal 500KB! Silakan pilih foto yang lebih kecil.',
-                        confirmButtonColor: '#FF78F0'
-                    });
-                    
-                    // Reset input
-                    input.value = '';
-                    preview.src = '';
-                    preview.classList.add('hidden');
-                    placeholder.classList.remove('hidden');
-                    return;
-                }
-
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    preview.src = e.target.result;
-                    preview.classList.remove('hidden');
-                    placeholder.classList.add('hidden');
-                }
-                reader.readAsDataURL(file);
-            }
-        }
-
-        // Updated Save Student with Image
-        function saveStudent() {
-            const index = parseInt(document.getElementById('studentIndex').value);
-            const name = document.getElementById('studentName').value;
-            const nisn = document.getElementById('studentNisn').value;
-            const className = document.getElementById('studentClass').value;
-            const phone = document.getElementById('studentPhone').value;
-            const address = document.getElementById('studentAddress').value;
-            const academicYear = document.getElementById('studentAcademicYear').value;
-            const photoInput = document.getElementById('studentPhoto');
-
-            if (!name || !className) { Swal.fire('Oops...', 'Nama dan Kelas wajib diisi!', 'error'); return; }
-
-            // Helper to finish saving after image processing
-            const finalizeSave = (photoData) => {
-                const studentData = { name, nisn, class: className, phone, address, academicYear, photo: photoData };
-                
-                if (index === -1) {
-                    students.push(studentData);
-                } else {
-                    students[index] = studentData; 
-                }
-                
-                saveToLocalStorage();
-                closeStudentModal();
-                showToast('Berhasil', 'Data disimpan', 'success');
-            };
-
-            // Check if file is selected
-            if (photoInput.files && photoInput.files[0]) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    finalizeSave(e.target.result); // Save with new photo
-                };
-                reader.readAsDataURL(photoInput.files[0]);
-            } else {
-                // No new file selected
-                let existingPhoto = null;
-                if (index !== -1) {
-                    existingPhoto = students[index].photo; // Keep existing photo
-                }
-                finalizeSave(existingPhoto);
-            }
-        }
-        
-        function deleteStudent(index) {
-            Swal.fire({ title: 'Hapus data?', icon: 'warning', showCancelButton: true, confirmButtonText: 'Ya, Hapus!', }).then((result) => {
-                if (result.isConfirmed) { students.splice(index, 1); saveToLocalStorage(); Swal.fire('Terhapus!', 'Data murid dihapus.', 'success'); }
-            });
-        }
+        function openActivityModal() { document.getElementById('activityIndex').value = '-1'; document.getElementById('activityDesc').value = ''; document.getElementById('activityModal').classList.remove('hidden'); }
+        function closeActivityModal() { document.getElementById('activityModal').classList.add('hidden'); }
+        function editActivity(index) { document.getElementById('activityIndex').value = index; document.getElementById('activityDesc').value = window.activities[index]; document.getElementById('activityModal').classList.remove('hidden'); }
 
         function navigateTo(pageId) {
-            const pages = document.querySelectorAll('section');
-            pages.forEach(page => {
-                page.classList.add('hidden');
-                const fadeDiv = page.querySelector('.fade-in');
-                if(fadeDiv) fadeDiv.classList.remove('fade-in');
-            });
-            const selectedPage = document.getElementById(pageId);
-            selectedPage.classList.remove('hidden');
-            setTimeout(() => { const fadeDiv = selectedPage.querySelector('div'); if(fadeDiv) fadeDiv.classList.add('fade-in'); }, 10);
-            window.scrollTo(0, 0);
-            if (pageId === 'page-recap') renderJournalRecap();
+            document.querySelectorAll('section').forEach(p => { p.classList.add('hidden'); p.querySelector('.fade-in')?.classList.remove('fade-in'); });
+            const selected = document.getElementById(pageId);
+            selected.classList.remove('hidden');
+            setTimeout(() => selected.querySelector('div').classList.add('fade-in'), 10);
+            window.scrollTo(0,0);
         }
 
         function showToast(title, message, type) {
             const toast = document.getElementById('toast');
-            const toastTitle = document.getElementById('toast-title');
-            const toastMsg = document.getElementById('toast-message');
             const container = toast.querySelector('div');
-            toastTitle.textContent = title;
-            toastMsg.textContent = message;
-            if (type === 'success') { container.className = "bg-white border-l-4 border-green-500 shadow-lg rounded-lg p-4 w-72 flex items-center gap-3"; } 
-            else { container.className = "bg-white border-l-4 border-red-500 shadow-lg rounded-lg p-4 w-72 flex items-center gap-3"; }
+            document.getElementById('toast-title').textContent = title;
+            document.getElementById('toast-message').textContent = message;
+            container.className = type === 'success' ? "bg-white border-l-4 border-green-500 shadow-lg rounded-lg p-4 w-72 flex items-center gap-3" : "bg-white border-l-4 border-red-500 shadow-lg rounded-lg p-4 w-72 flex items-center gap-3";
+            document.getElementById('toast-icon').innerHTML = type === 'success' ? `<i data-lucide="check-circle" class="w-6 h-6 text-green-500"></i>` : `<i data-lucide="alert-circle" class="w-6 h-6 text-red-500"></i>`;
             lucide.createIcons();
             toast.classList.remove('translate-x-full', 'opacity-0');
             setTimeout(() => toast.classList.add('translate-x-full', 'opacity-0'), 3000);
         }
 
-        // INITIALIZATION
+        // PDF Logic (Keep existing)
+        function openPdfSettings() { document.getElementById('pdfSettingsModal').classList.remove('hidden'); }
+        function closePdfSettings() { 
+            pdfSettings.pageSize = document.getElementById('pdfSize').value;
+            pdfSettings.orientation = document.querySelector('input[name="pdfOrientation"]:checked').value;
+            pdfSettings.marginTop = Number(document.getElementById('pdfMarginTop').value);
+            pdfSettings.marginRight = Number(document.getElementById('pdfMarginRight').value);
+            pdfSettings.marginBottom = Number(document.getElementById('pdfMarginBottom').value);
+            pdfSettings.marginLeft = Number(document.getElementById('pdfMarginLeft').value);
+            localStorage.setItem('guruWali_pdfSettings', JSON.stringify(pdfSettings));
+            document.getElementById('pdfSettingsModal').classList.add('hidden');
+        }
+        function exportJournalToPdf() {
+            if (window.journals.length === 0) { Swal.fire('Info', 'Belum ada data jurnal.', 'info'); return; }
+            const { jsPDF } = window.jspdf;
+            let format = pdfSettings.pageSize === 'f4' ? [215, 330] : pdfSettings.pageSize;
+            const doc = new jsPDF({ orientation: pdfSettings.orientation, unit: 'mm', format: format });
+            doc.setFontSize(16); doc.text("Rekap Jurnal Guru Wali", pdfSettings.marginLeft, pdfSettings.marginTop);
+            doc.setFontSize(12); doc.text("Dwik Setyawan, S.Pd.", pdfSettings.marginLeft, pdfSettings.marginTop + 7);
+            const headers = [['No', 'Tanggal', 'Waktu', 'Nama Murid', 'Kelas', 'Thn Ajaran', 'Jenis', 'Topik', 'Tindak Lanjut']];
+            const data = window.journals.map((j, index) => [index + 1, j.tanggal, j.waktu, j.nama, j.kelas, j.academicYear || '-', j.jenis, j.topik, j.tindak_lanjut]);
+            doc.autoTable({ head: headers, body: data, startY: pdfSettings.marginTop + 15, margin: { top: pdfSettings.marginTop, right: pdfSettings.marginRight, bottom: pdfSettings.marginBottom, left: pdfSettings.marginLeft }, styles: { fontSize: 8, cellPadding: 2 }, headStyles: { fillColor: [16, 185, 129] }, theme: 'grid' });
+            doc.save(`Jurnal_Wali_${new Date().toISOString().slice(0,10)}.pdf`);
+        }
+
         lucide.createIcons();
-        renderFilterOptions(); 
-        renderStudents();
-        renderProgram();
-        renderJournalDatalist();
-        renderJournalRecap();
     </script>
 </body>
 </html>
