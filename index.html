@@ -1,11 +1,29 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="id" class="scroll-smooth">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Aplikasi Guru Wali - Dwik Setyawan, S.Pd.</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        dark: {
+                            bg: '#0f172a',
+                            card: '#1e293b',
+                            text: '#f1f5f9',
+                            muted: '#94a3b8',
+                            border: '#334155'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
     <!-- SweetAlert2 -->
@@ -201,39 +219,65 @@
 
     <style>
         .glass-panel { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); }
-        .form-input { @apply w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-0 transition-all duration-200; }
-        .form-input:hover { @apply border-gray-300; }
         
+        /* Updated Form Input Style: Distinct Border, Responsive Padding */
+        .form-input { 
+            @apply w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-0 transition-all duration-200 dark:bg-gray-900 dark:border-gray-700 dark:text-gray-200 dark:placeholder-gray-500;
+        }
+
+        /* Hover Effect for inputs */
+        .form-input:hover {
+            @apply border-gray-300 dark:border-gray-600;
+        }
+
         /* Color Variants for different modals */
-        .form-input-pink:focus { @apply border-pink-400 shadow-[0_0_0_2px_rgba(244,114,182,0.2)]; }
-        .form-input-yellow:focus { @apply border-yellow-400 shadow-[0_0_0_2px_rgba(250,204,21,0.2)]; }
-        .form-input-purple:focus { @apply border-purple-500 shadow-[0_0_0_2px_rgba(168,85,247,0.2)]; }
-        .form-input-blue:focus { @apply border-blue-500 shadow-[0_0_0_2px_rgba(59,130,246,0.2)]; }
-        .form-input-emerald:focus { @apply border-emerald-500 shadow-[0_0_0_2px_rgba(16,185,129,0.2)]; }
+        .form-input-pink:focus { @apply border-pink-400 shadow-[0_0_0_2px_rgba(244,114,182,0.2)] dark:border-pink-500; }
+        .form-input-yellow:focus { @apply border-yellow-400 shadow-[0_0_0_2px_rgba(250,204,21,0.2)] dark:border-yellow-500; }
+        .form-input-purple:focus { @apply border-purple-500 shadow-[0_0_0_2px_rgba(168,85,247,0.2)] dark:border-purple-500; }
+        .form-input-blue:focus { @apply border-blue-500 shadow-[0_0_0_2px_rgba(59,130,246,0.2)] dark:border-blue-500; }
+        .form-input-emerald:focus { @apply border-emerald-500 shadow-[0_0_0_2px_rgba(16,185,129,0.2)] dark:border-emerald-500; }
+
+        /* Dark Mode Transitions */
+        body, div, section, table, tr, td, input, textarea, select {
+            @apply transition-colors duration-300;
+        }
+        
+        /* Custom Scrollbar for dark mode textareas/tables */
+        .dark ::-webkit-scrollbar-thumb {
+            @apply bg-gray-600 rounded;
+        }
+        .dark ::-webkit-scrollbar-track {
+            @apply bg-gray-800;
+        }
     </style>
 </head>
-<body class="bg-gray-50 text-gray-800">
+<body class="bg-gray-50 text-gray-800 dark:bg-dark-bg dark:text-dark-text min-h-screen relative overflow-x-hidden font-sans">
+
+    <!-- THEME TOGGLE BUTTON -->
+    <button onclick="toggleTheme()" id="themeToggleBtn" class="fixed top-5 left-5 z-[100] bg-white dark:bg-gray-800 p-2 rounded-full shadow-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-yellow-400 hover:scale-110 transition active:scale-95">
+        <i data-lucide="moon" id="themeIcon" class="w-5 h-5"></i>
+    </button>
 
     <!-- TOAST -->
     <div id="toast" class="fixed top-5 right-5 z-[100] transform transition-all duration-300 translate-x-full opacity-0 pointer-events-none">
-        <div class="bg-white border-l-4 shadow-lg rounded-lg p-4 w-72 flex items-center gap-3 pointer-events-auto">
+        <div class="bg-white dark:bg-gray-800 border-l-4 shadow-xl rounded-xl p-4 w-72 flex items-center gap-3 pointer-events-auto dark:border-gray-600 dark:text-white border-white/20 backdrop-blur-md">
             <div id="toast-icon"></div>
             <div>
                 <h4 id="toast-title" class="font-bold text-sm"></h4>
-                <p id="toast-message" class="text-xs text-gray-600"></p>
+                <p id="toast-message" class="text-xs text-gray-500 dark:text-gray-400"></p>
             </div>
         </div>
     </div>
 
     <!-- LANDING PAGE -->
-    <section id="page-landing" class="flex flex-col items-center justify-center min-h-screen p-6 bg-gradient-to-br from-blue-500 to-cyan-400 text-white">
-        <div class="bg-white/20 backdrop-blur-md p-8 rounded-3xl shadow-2xl text-center max-w-sm w-full border border-white/30">
-            <div class="bg-white text-blue-500 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
+    <section id="page-landing" class="flex flex-col items-center justify-center min-h-screen p-6 bg-gradient-to-br from-blue-500 to-cyan-400 dark:from-slate-800 dark:to-slate-950 text-white">
+        <div class="bg-white/10 backdrop-blur-lg p-8 rounded-3xl shadow-2xl text-center max-w-sm w-full border border-white/20 dark:border-white/10">
+            <div class="bg-white dark:bg-gray-800 text-blue-500 dark:text-blue-400 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg rotate-3 hover:rotate-6 transition duration-300">
                 <i data-lucide="graduation-cap" class="w-8 h-8"></i>
             </div>
-            <h1 class="text-3xl font-bold mb-2">Guru Wali</h1>
-            <p class="text-white/90 mb-8 font-medium">Aplikasi Pendampingan Siswa</p>
-            <button onclick="nav('page-home')" class="w-full bg-white text-blue-600 font-bold py-3 rounded-xl shadow-lg hover:bg-gray-50 hover:scale-105 transition transform flex items-center justify-center gap-2">
+            <h1 class="text-3xl font-bold mb-2 tracking-tight">Guru Wali</h1>
+            <p class="text-white/90 dark:text-gray-300 mb-8 font-medium">Aplikasi Pendampingan Siswa</p>
+            <button onclick="nav('page-home')" class="w-full bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 font-bold py-3.5 rounded-xl shadow-lg hover:bg-gray-50 dark:hover:bg-gray-700 hover:scale-105 transition transform flex items-center justify-center gap-2">
                 Mulai Sekarang <i data-lucide="arrow-right" class="w-4 h-4"></i>
             </button>
         </div>
@@ -243,44 +287,44 @@
     <!-- HOME DASHBOARD -->
     <section id="page-home" class="hidden min-h-screen p-6">
         <div class="max-w-6xl mx-auto space-y-6">
-            <div class="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-blue-500 flex justify-between items-center">
+            <div class="bg-white dark:bg-dark-card p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-800 flex justify-between items-center">
                 <div>
-                    <h2 class="text-xl font-bold text-gray-800">Dashboard Utama</h2>
-                    <p class="text-sm text-gray-500">Selamat datang di panel kontrol.</p>
+                    <h2 class="text-xl font-bold text-gray-800 dark:text-white">Dashboard Utama</h2>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Selamat datang di panel kontrol.</p>
                 </div>
                 <div class="text-right hidden sm:block">
-                    <p class="text-xs text-gray-400" id="current-date"></p>
+                    <p class="text-xs font-mono text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded-md" id="current-date"></p>
                 </div>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <!-- Menu Cards -->
-                <div onclick="nav('page-program')" class="bg-white p-6 rounded-2xl shadow-sm hover:shadow-md transition cursor-pointer border border-gray-100 group relative overflow-hidden">
-                    <div class="absolute right-[-10px] top-[-10px] opacity-5 transform rotate-12 transition group-hover:scale-110 group-hover:opacity-10"><i data-lucide="calendar-check" class="w-32 h-32 text-purple-600"></i></div>
-                    <div class="w-12 h-12 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center mb-4"><i data-lucide="calendar-check" class="w-6 h-6"></i></div>
-                    <h3 class="font-bold text-gray-800">Program Kegiatan</h3>
-                    <p class="text-xs text-gray-500 mt-1">Kelola pilar & aktivitas.</p>
+                <div onclick="nav('page-program')" class="bg-white dark:bg-dark-card p-6 rounded-3xl shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer border border-gray-100 dark:border-gray-800 group relative overflow-hidden">
+                    <div class="absolute right-[-20px] top-[-20px] opacity-5 transform rotate-12 transition group-hover:scale-110 group-hover:opacity-10 dark:opacity-5"><i data-lucide="calendar-check" class="w-40 h-40 text-purple-600 dark:text-purple-400"></i></div>
+                    <div class="w-12 h-12 rounded-2xl bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 flex items-center justify-center mb-4 shadow-sm"><i data-lucide="calendar-check" class="w-6 h-6"></i></div>
+                    <h3 class="font-bold text-gray-800 dark:text-white text-lg">Program Kegiatan</h3>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Kelola pilar & aktivitas.</p>
                 </div>
 
-                <div onclick="nav('page-students')" class="bg-white p-6 rounded-2xl shadow-sm hover:shadow-md transition cursor-pointer border border-gray-100 group relative overflow-hidden">
-                    <div class="absolute right-[-10px] top-[-10px] opacity-5 transform rotate-12 transition group-hover:scale-110 group-hover:opacity-10"><i data-lucide="users" class="w-32 h-32 text-pink-500"></i></div>
-                    <div class="w-12 h-12 rounded-xl bg-pink-100 text-pink-500 flex items-center justify-center mb-4"><i data-lucide="users" class="w-6 h-6"></i></div>
-                    <h3 class="font-bold text-gray-800">Daftar Murid</h3>
-                    <p class="text-xs text-gray-500 mt-1">Data siswa & profil.</p>
+                <div onclick="nav('page-students')" class="bg-white dark:bg-dark-card p-6 rounded-3xl shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer border border-gray-100 dark:border-gray-800 group relative overflow-hidden">
+                    <div class="absolute right-[-20px] top-[-20px] opacity-5 transform rotate-12 transition group-hover:scale-110 group-hover:opacity-10 dark:opacity-5"><i data-lucide="users" class="w-40 h-40 text-pink-500 dark:text-pink-400"></i></div>
+                    <div class="w-12 h-12 rounded-2xl bg-pink-100 dark:bg-pink-900/30 text-pink-500 dark:text-pink-400 flex items-center justify-center mb-4 shadow-sm"><i data-lucide="users" class="w-6 h-6"></i></div>
+                    <h3 class="font-bold text-gray-800 dark:text-white text-lg">Daftar Murid</h3>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Data siswa & profil.</p>
                 </div>
 
-                <div onclick="nav('page-journal')" class="bg-white p-6 rounded-2xl shadow-sm hover:shadow-md transition cursor-pointer border border-gray-100 group relative overflow-hidden">
-                    <div class="absolute right-[-10px] top-[-10px] opacity-5 transform rotate-12 transition group-hover:scale-110 group-hover:opacity-10"><i data-lucide="book-open" class="w-32 h-32 text-yellow-500"></i></div>
-                    <div class="w-12 h-12 rounded-xl bg-yellow-100 text-yellow-600 flex items-center justify-center mb-4"><i data-lucide="book-open" class="w-6 h-6"></i></div>
-                    <h3 class="font-bold text-gray-800">Jurnal Guru</h3>
-                    <p class="text-xs text-gray-500 mt-1">Catatan harian & bimbingan.</p>
+                <div onclick="nav('page-journal')" class="bg-white dark:bg-dark-card p-6 rounded-3xl shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer border border-gray-100 dark:border-gray-800 group relative overflow-hidden">
+                    <div class="absolute right-[-20px] top-[-20px] opacity-5 transform rotate-12 transition group-hover:scale-110 group-hover:opacity-10 dark:opacity-5"><i data-lucide="book-open" class="w-40 h-40 text-yellow-500 dark:text-yellow-400"></i></div>
+                    <div class="w-12 h-12 rounded-2xl bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400 flex items-center justify-center mb-4 shadow-sm"><i data-lucide="book-open" class="w-6 h-6"></i></div>
+                    <h3 class="font-bold text-gray-800 dark:text-white text-lg">Jurnal Guru</h3>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Catatan harian & bimbingan.</p>
                 </div>
 
-                <div onclick="nav('page-recap')" class="bg-white p-6 rounded-2xl shadow-sm hover:shadow-md transition cursor-pointer border border-gray-100 group relative overflow-hidden">
-                    <div class="absolute right-[-10px] top-[-10px] opacity-5 transform rotate-12 transition group-hover:scale-110 group-hover:opacity-10"><i data-lucide="clipboard-list" class="w-32 h-32 text-emerald-500"></i></div>
-                    <div class="w-12 h-12 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center mb-4"><i data-lucide="clipboard-list" class="w-6 h-6"></i></div>
-                    <h3 class="font-bold text-gray-800">Rekap Jurnal</h3>
-                    <p class="text-xs text-gray-500 mt-1">Laporan & Ekspor Data.</p>
+                <div onclick="nav('page-recap')" class="bg-white dark:bg-dark-card p-6 rounded-3xl shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer border border-gray-100 dark:border-gray-800 group relative overflow-hidden">
+                    <div class="absolute right-[-20px] top-[-20px] opacity-5 transform rotate-12 transition group-hover:scale-110 group-hover:opacity-10 dark:opacity-5"><i data-lucide="clipboard-list" class="w-40 h-40 text-emerald-500 dark:text-emerald-400"></i></div>
+                    <div class="w-12 h-12 rounded-2xl bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mb-4 shadow-sm"><i data-lucide="clipboard-list" class="w-6 h-6"></i></div>
+                    <h3 class="font-bold text-gray-800 dark:text-white text-lg">Rekap Jurnal</h3>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Laporan & Ekspor Data.</p>
                 </div>
             </div>
         </div>
@@ -290,29 +334,29 @@
     <section id="page-program" class="hidden min-h-screen p-6">
         <div class="max-w-5xl mx-auto space-y-6">
             <div class="flex items-center justify-between">
-                <h2 class="text-2xl font-bold text-gray-800">Program Kegiatan</h2>
-                <button onclick="nav('page-home')" class="bg-white p-2 rounded-lg shadow text-gray-600 hover:bg-gray-50"><i data-lucide="home" class="w-5 h-5"></i></button>
+                <h2 class="text-2xl font-bold text-gray-800 dark:text-white">Program Kegiatan</h2>
+                <button onclick="nav('page-home')" class="bg-white dark:bg-gray-800 p-2 rounded-xl shadow-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition border border-gray-100 dark:border-gray-700"><i data-lucide="home" class="w-5 h-5"></i></button>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <!-- Pillars -->
-                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 h-fit">
+                <div class="bg-white dark:bg-dark-card p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-800 h-fit">
                     <div class="flex justify-between items-center mb-4">
-                        <h3 class="font-bold text-purple-600">Pilar Program</h3>
-                        <button onclick="editPillar()" class="p-1 hover:bg-purple-50 rounded text-purple-600"><i data-lucide="plus" class="w-4 h-4"></i></button>
+                        <h3 class="font-bold text-purple-600 dark:text-purple-400">Pilar Program</h3>
+                        <button onclick="editPillar()" class="p-1.5 hover:bg-purple-50 dark:hover:bg-purple-900/30 rounded-lg text-purple-600 dark:text-purple-400 transition"><i data-lucide="plus" class="w-4 h-4"></i></button>
                     </div>
                     <div id="pillar-list" class="space-y-3"></div>
                 </div>
 
                 <!-- Activities -->
-                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 md:col-span-2">
+                <div class="bg-white dark:bg-dark-card p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-800 md:col-span-2">
                     <div class="flex justify-between items-center mb-4">
-                        <h3 class="font-bold text-purple-600">Bentuk Kegiatan</h3>
-                        <button onclick="editActivity()" class="p-1 hover:bg-purple-50 rounded text-purple-600"><i data-lucide="plus" class="w-4 h-4"></i></button>
+                        <h3 class="font-bold text-purple-600 dark:text-purple-400">Bentuk Kegiatan</h3>
+                        <button onclick="editActivity()" class="p-1.5 hover:bg-purple-50 dark:hover:bg-purple-900/30 rounded-lg text-purple-600 dark:text-purple-400 transition"><i data-lucide="plus" class="w-4 h-4"></i></button>
                     </div>
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-sm text-left text-gray-600">
-                            <tbody id="activity-list" class="divide-y divide-gray-100"></tbody>
+                    <div class="overflow-x-auto rounded-xl border border-gray-100 dark:border-gray-700">
+                        <table class="w-full text-sm text-left text-gray-600 dark:text-gray-300">
+                            <tbody id="activity-list" class="divide-y divide-gray-100 dark:divide-gray-700"></tbody>
                         </table>
                     </div>
                 </div>
@@ -324,25 +368,25 @@
     <section id="page-students" class="hidden min-h-screen p-6">
         <div class="max-w-6xl mx-auto space-y-6">
             <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <h2 class="text-2xl font-bold text-gray-800">Daftar Murid</h2>
+                <h2 class="text-2xl font-bold text-gray-800 dark:text-white">Daftar Murid</h2>
                 <div class="flex gap-2">
-                    <button onclick="openModal('cloudModal')" class="bg-pink-50 text-pink-600 px-3 py-2 rounded-lg text-sm font-medium hover:bg-pink-100 flex items-center gap-2"><i data-lucide="cloud" class="w-4 h-4"></i> Sync</button>
-                    <button onclick="editStudent()" class="bg-pink-500 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-pink-600 flex items-center gap-2"><i data-lucide="plus" class="w-4 h-4"></i> Baru</button>
-                    <button onclick="nav('page-home')" class="bg-white p-2 rounded-lg shadow text-gray-600 hover:bg-gray-50"><i data-lucide="home" class="w-5 h-5"></i></button>
+                    <button onclick="openModal('cloudModal')" class="bg-pink-50 dark:bg-pink-900/30 text-pink-600 dark:text-pink-400 px-4 py-2 rounded-xl text-sm font-medium hover:bg-pink-100 dark:hover:bg-pink-900/50 flex items-center gap-2 transition"><i data-lucide="cloud" class="w-4 h-4"></i> Sync</button>
+                    <button onclick="editStudent()" class="bg-pink-500 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-pink-600 shadow-md flex items-center gap-2 transition"><i data-lucide="plus" class="w-4 h-4"></i> Baru</button>
+                    <button onclick="nav('page-home')" class="bg-white dark:bg-gray-800 p-2 rounded-xl shadow-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition border border-gray-100 dark:border-gray-700"><i data-lucide="home" class="w-5 h-5"></i></button>
                 </div>
             </div>
 
             <!-- Toolbar -->
-            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col md:flex-row gap-4 justify-between items-center">
-                <div class="flex gap-2 w-full md:w-auto">
+            <div class="bg-white dark:bg-dark-card p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col md:flex-row gap-4 justify-between items-center">
+                <div class="flex flex-wrap gap-2 w-full md:w-auto">
                     <input type="file" id="importFile" accept=".xlsx, .xls" class="hidden" onchange="importExcel(this)">
-                    <button onclick="document.getElementById('importFile').click()" class="px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 rounded text-gray-700 flex items-center gap-1"><i data-lucide="upload" class="w-3 h-3"></i> Impor Excel</button>
-                    <button onclick="exportExcelStudents()" class="px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 rounded text-gray-700 flex items-center gap-1"><i data-lucide="download" class="w-3 h-3"></i> Ekspor Excel</button>
-                    <button onclick="bulkDeleteUI()" class="px-3 py-1.5 text-xs bg-red-50 hover:bg-red-100 text-red-600 rounded flex items-center gap-1"><i data-lucide="trash-2" class="w-3 h-3"></i> Hapus Massal</button>
+                    <button onclick="document.getElementById('importFile').click()" class="px-4 py-2 text-xs bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg text-gray-700 dark:text-gray-200 flex items-center gap-2 border border-gray-200 dark:border-gray-600 transition"><i data-lucide="upload" class="w-3 h-3"></i> Impor</button>
+                    <button onclick="exportExcelStudents()" class="px-4 py-2 text-xs bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg text-gray-700 dark:text-gray-200 flex items-center gap-2 border border-gray-200 dark:border-gray-600 transition"><i data-lucide="download" class="w-3 h-3"></i> Ekspor</button>
+                    <button onclick="bulkDeleteUI()" class="px-4 py-2 text-xs bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40 text-red-600 dark:text-red-400 rounded-lg flex items-center gap-2 border border-red-100 dark:border-red-900/30 transition"><i data-lucide="trash-2" class="w-3 h-3"></i> Hapus Massal</button>
                 </div>
-                <div class="flex items-center gap-2 w-full md:w-auto">
-                    <span class="text-xs text-gray-500">Filter:</span>
-                    <select id="filterYear" onchange="window.refreshUI()" class="text-sm bg-gray-50 border-none rounded p-1 focus:ring-0"></select>
+                <div class="flex items-center gap-3 w-full md:w-auto">
+                    <span class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Filter:</span>
+                    <select id="filterYear" onchange="window.refreshUI()" class="text-sm bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-pink-400/50 dark:focus:ring-pink-500/50 outline-none dark:text-gray-200 transition"></select>
                 </div>
             </div>
 
@@ -353,41 +397,81 @@
 
     <!-- PAGE: JURNAL -->
     <section id="page-journal" class="hidden min-h-screen p-6">
-        <div class="max-w-2xl mx-auto space-y-6">
-            <div class="flex items-center justify-between">
-                <h2 class="text-2xl font-bold text-gray-800">Jurnal Guru</h2>
-                <button onclick="nav('page-home')" class="bg-white p-2 rounded-lg shadow text-gray-600 hover:bg-gray-50"><i data-lucide="home" class="w-5 h-5"></i></button>
+        <div class="max-w-xl mx-auto space-y-6">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <h2 class="text-2xl font-bold text-gray-800 dark:text-white">Jurnal Guru</h2>
+                <button onclick="nav('page-home')" class="bg-white dark:bg-gray-800 p-2 rounded-xl shadow-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition border border-gray-100 dark:border-gray-700 self-start md:self-auto">
+                    <i data-lucide="home" class="w-5 h-5"></i>
+                </button>
             </div>
 
-            <div class="bg-white p-6 rounded-2xl shadow-lg border-t-4 border-yellow-400">
-                <form id="journalForm" onsubmit="handleJournalSubmit(event)" class="space-y-4">
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="bg-white dark:bg-gray-900 rounded-3xl shadow-xl border border-gray-100 dark:border-gray-800 p-6 md:p-8">
+                <div class="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100 dark:border-gray-800">
+                    <div class="bg-yellow-100 dark:bg-yellow-900/30 p-2.5 rounded-xl"><i data-lucide="book-open" class="w-6 h-6 text-yellow-600 dark:text-yellow-400"></i></div>
+                    <h3 class="text-xl font-bold text-gray-800 dark:text-white">Input Jurnal Baru</h3>
+                </div>
+
+                <form id="journalForm" onsubmit="handleJournalSubmit(event)" class="space-y-5">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Tanggal</label>
-                            <input type="date" name="tanggal" required class="form-input text-sm form-input-yellow">
+                            <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1.5 ml-1">Tanggal</label>
+                            <input type="date" name="tanggal" required class="form-input form-input-yellow text-sm">
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Waktu (Format 24 Jam)</label>
-                            <input type="time" name="waktu" required class="form-input text-sm form-input-yellow">
+                            <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1.5 ml-1">Waktu (24 Jam)</label>
+                            <input type="time" name="waktu" required class="form-input form-input-yellow text-sm">
                         </div>
                     </div>
-                    <div>
-                        <input type="text" id="jName" name="nama" list="dl_students" placeholder="Nama Murid..." class="form-input form-input-yellow" onchange="autoFillJournal(this)">
+
+                     <div>
+                        <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1.5 ml-1">Nama Murid</label>
+                        <div class="relative">
+                            <input type="text" id="jName" name="nama" list="dl_students" placeholder="Cari nama murid..." 
+                                class="form-input form-input-yellow pl-10"
+                                onchange="autoFillJournal(this)">
+                            <i data-lucide="search" class="absolute left-3.5 top-3 w-4 h-4 text-gray-400"></i>
+                        </div>
                         <datalist id="dl_students"></datalist>
                     </div>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <input type="text" id="jClass" name="kelas" placeholder="Kelas" class="form-input text-sm form-input-yellow">
-                        <input type="text" id="jYear" name="academicYear" placeholder="Thn Ajaran" class="form-input text-sm form-input-yellow">
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1.5 ml-1">Kelas</label>
+                            <input type="text" id="jClass" name="kelas" placeholder="Otomatis..." class="form-input form-input-yellow bg-gray-50 dark:bg-gray-800/50">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1.5 ml-1">Tahun Ajaran</label>
+                            <input type="text" id="jYear" name="academicYear" placeholder="Otomatis..." class="form-input form-input-yellow bg-gray-50 dark:bg-gray-800/50">
+                        </div>
                     </div>
-                    <select name="jenis" class="form-input bg-white form-input-yellow">
-                        <option>Pendampingan Akademik</option>
-                        <option>Pengembangan Kompetensi</option>
-                        <option>Pengembangan Keterampilan</option>
-                        <option>Pembentukan Karakter</option>
-                    </select>
-                    <textarea name="topik" rows="2" placeholder="Topik Permasalahan" class="form-input form-input-yellow"></textarea>
-                    <textarea name="tindak_lanjut" rows="2" placeholder="Tindak Lanjut" class="form-input form-input-yellow"></textarea>
-                    <button type="submit" class="w-full bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-bold py-3 rounded-xl transition shadow-md">Simpan Jurnal</button>
+
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1.5 ml-1">Jenis Bimbingan</label>
+                         <div class="relative">
+                            <select name="jenis" class="form-input form-input-yellow bg-white dark:bg-gray-900 appearance-none">
+                                <option>Pendampingan Akademik</option>
+                                <option>Pengembangan Kompetensi</option>
+                                <option>Pengembangan Keterampilan</option>
+                                <option>Pembentukan Karakter</option>
+                            </select>
+                            <i data-lucide="chevron-down" class="absolute right-4 top-3.5 w-4 h-4 text-gray-400 pointer-events-none"></i>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1.5 ml-1">Topik Permasalahan</label>
+                        <textarea name="topik" rows="2" placeholder="Deskripsikan..." class="form-input form-input-yellow resize-none"></textarea>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1.5 ml-1">Tindak Lanjut</label>
+                        <textarea name="tindak_lanjut" rows="2" placeholder="Rencana..." class="form-input form-input-yellow resize-none"></textarea>
+                    </div>
+
+                     <div class="pt-6 border-t border-gray-100 dark:border-gray-800">
+                        <button type="submit" class="w-full bg-yellow-500 text-white rounded-xl text-sm font-bold py-3 hover:bg-yellow-600 shadow-lg shadow-yellow-500/20 transition transform hover:-translate-y-0.5 flex items-center justify-center gap-2">
+                            <i data-lucide="save" class="w-4 h-4"></i> Simpan Laporan
+                        </button>
+                    </div>
                 </form>
             </div>
         </div>
@@ -397,34 +481,37 @@
     <section id="page-recap" class="hidden min-h-screen p-6">
         <div class="max-w-6xl mx-auto space-y-6">
             <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <h2 class="text-2xl font-bold text-gray-800">Rekap Jurnal</h2>
+                <h2 class="text-2xl font-bold text-gray-800 dark:text-white">Rekap Jurnal</h2>
                 <div class="flex gap-2">
-                    <button onclick="window.openPdfSettings()" class="bg-white p-2 rounded-full hover:bg-white/30 transition flex items-center justify-center w-8 h-8 flex-shrink-0 border border-gray-200" title="Pengaturan PDF">
-                        <i data-lucide="settings" class="w-4 h-4 text-gray-600"></i>
+                    <button onclick="window.openPdfSettings()" class="bg-white dark:bg-gray-800 p-2.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition flex items-center justify-center w-10 h-10 flex-shrink-0 border border-gray-200 dark:border-gray-700 shadow-sm group" title="Pengaturan PDF">
+                        <i data-lucide="settings" class="w-5 h-5 text-gray-600 dark:text-gray-300 group-hover:rotate-45 transition-transform duration-500"></i>
                     </button>
-                    <button onclick="exportRecapPDF()" class="bg-white text-red-600 border border-red-100 px-3 py-2 rounded-lg text-sm hover:bg-red-50 flex gap-2"><i data-lucide="file-text" class="w-4 h-4"></i> PDF</button>
-                    <button onclick="exportRecapExcel()" class="bg-white text-green-600 border border-green-100 px-3 py-2 rounded-lg text-sm hover:bg-green-50 flex gap-2"><i data-lucide="sheet" class="w-4 h-4"></i> Excel</button>
-                    <button onclick="nav('page-home')" class="bg-white p-2 rounded-lg shadow text-gray-600 hover:bg-gray-50"><i data-lucide="home" class="w-5 h-5"></i></button>
+                    <button onclick="exportRecapPDF()" class="bg-white dark:bg-gray-800 text-red-600 dark:text-red-400 border border-red-100 dark:border-red-900/30 px-4 py-2 rounded-xl text-sm font-medium hover:bg-red-50 dark:hover:bg-red-900/20 flex gap-2 items-center shadow-sm transition"><i data-lucide="file-text" class="w-4 h-4"></i> PDF</button>
+                    <button onclick="exportRecapExcel()" class="bg-white dark:bg-gray-800 text-green-600 dark:text-green-400 border border-green-100 dark:border-green-900/30 px-4 py-2 rounded-xl text-sm font-medium hover:bg-green-50 dark:hover:bg-green-900/20 flex gap-2 items-center shadow-sm transition"><i data-lucide="sheet" class="w-4 h-4"></i> Excel</button>
+                    <button onclick="nav('page-home')" class="bg-white dark:bg-gray-800 p-2.5 rounded-xl shadow-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition border border-gray-200 dark:border-gray-700"><i data-lucide="home" class="w-5 h-5"></i></button>
                 </div>
             </div>
 
-            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div class="bg-white dark:bg-dark-card rounded-3xl shadow-sm border border-gray-100 dark:border-dark-border overflow-hidden">
                 <div class="overflow-x-auto">
-                    <table class="w-full text-sm text-left text-gray-600">
-                        <thead class="bg-emerald-50 text-emerald-700 uppercase text-xs">
+                    <table class="w-full text-sm text-left text-gray-600 dark:text-gray-300">
+                        <thead class="bg-emerald-50/50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 uppercase text-xs tracking-wider border-b border-emerald-100 dark:border-emerald-900/30">
                             <tr>
-                                <th class="px-4 py-3">No</th>
-                                <th class="px-4 py-3">Waktu</th>
-                                <th class="px-4 py-3">Nama</th>
-                                <th class="px-4 py-3">Topik</th>
-                                <th class="px-4 py-3">Tindak Lanjut</th>
-                                <th class="px-4 py-3 text-right">Aksi</th>
+                                <th class="px-6 py-4 font-bold">No</th>
+                                <th class="px-6 py-4 font-bold">Waktu</th>
+                                <th class="px-6 py-4 font-bold">Nama</th>
+                                <th class="px-6 py-4 font-bold">Topik</th>
+                                <th class="px-6 py-4 font-bold">Tindak Lanjut</th>
+                                <th class="px-6 py-4 font-bold text-right">Aksi</th>
                             </tr>
                         </thead>
-                        <tbody id="recap-list" class="divide-y divide-gray-100 bg-white"></tbody>
+                        <tbody id="recap-list" class="divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-dark-card"></tbody>
                     </table>
                 </div>
-                <div id="recap-empty" class="p-8 text-center text-gray-400 text-sm hidden">Belum ada data jurnal.</div>
+                <div id="recap-empty" class="p-12 text-center text-gray-400 dark:text-gray-600 text-sm hidden">
+                    <i data-lucide="inbox" class="w-12 h-12 mx-auto mb-3 opacity-50"></i>
+                    Belum ada data jurnal.
+                </div>
             </div>
         </div>
     </section>
@@ -432,18 +519,18 @@
     <!-- MODALS -->
     
     <!-- Pillar Modal -->
-    <div id="pillarModal" class="fixed inset-0 z-[60] hidden bg-black/50 flex items-center justify-center p-4 backdrop-blur-sm" onclick="if(event.target===this) window.closePillarModal()">
-        <div class="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl">
-            <h3 id="pillarModalTitle" class="text-lg font-bold mb-4">Edit Pilar</h3>
+    <div id="pillarModal" class="fixed inset-0 z-[60] hidden bg-black/50 dark:bg-black/80 flex items-center justify-center p-4 backdrop-blur-md transition-opacity duration-300" onclick="if(event.target===this) window.closePillarModal()">
+        <div class="bg-white dark:bg-gray-900 rounded-3xl w-full max-w-sm p-6 shadow-2xl border border-gray-100 dark:border-gray-800">
+            <h3 id="pillarModalTitle" class="text-xl font-bold mb-6 text-gray-900 dark:text-white flex items-center gap-2"><div class="bg-purple-100 dark:bg-purple-900/30 p-2 rounded-lg"><i data-lucide="edit-2" class="w-5 h-5 text-purple-600 dark:text-purple-400"></i></div> Edit Pilar</h3>
             <input type="hidden" id="pillarIndex">
-            <div class="space-y-3">
+            <div class="space-y-4">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700">Nama Pilar</label>
+                    <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">Nama Pilar</label>
                     <input type="text" id="pillarName" class="form-input form-input-purple">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700">Ikon (Lucide)</label>
-                    <select id="pillarIcon" class="form-input bg-white form-input-purple">
+                    <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">Ikon (Lucide)</label>
+                    <select id="pillarIcon" class="form-input bg-white dark:bg-gray-800 form-input-purple">
                         <option value="book">Book</option>
                         <option value="award">Award</option>
                         <option value="pen-tool">Pen Tool</option>
@@ -455,161 +542,161 @@
                     </select>
                 </div>
             </div>
-            <div class="mt-6 flex justify-end gap-2">
-                <button onclick="window.closePillarModal()" class="px-4 py-2 text-gray-500 hover:bg-gray-100 rounded-lg text-sm">Batal</button>
-                <button onclick="window.savePillar()" class="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700 shadow">Simpan</button>
+            <div class="mt-8 flex justify-end gap-3">
+                <button onclick="window.closePillarModal()" class="px-5 py-2.5 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl text-sm font-medium transition">Batal</button>
+                <button onclick="window.savePillar()" class="px-5 py-2.5 bg-purple-600 text-white rounded-xl text-sm font-medium hover:bg-purple-700 shadow-lg shadow-purple-500/20 transition">Simpan</button>
             </div>
         </div>
     </div>
 
     <!-- Activity Modal -->
-    <div id="activityModal" class="fixed inset-0 z-[60] hidden bg-black/50 flex items-center justify-center p-4 backdrop-blur-sm" onclick="if(event.target===this) window.closeActivityModal()">
-        <div class="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl">
-            <h3 id="activityModalTitle" class="text-lg font-bold mb-4">Edit Kegiatan</h3>
+    <div id="activityModal" class="fixed inset-0 z-[60] hidden bg-black/50 dark:bg-black/80 flex items-center justify-center p-4 backdrop-blur-md transition-opacity duration-300" onclick="if(event.target===this) window.closeActivityModal()">
+        <div class="bg-white dark:bg-gray-900 rounded-3xl w-full max-w-md p-6 shadow-2xl border border-gray-100 dark:border-gray-800">
+            <h3 id="activityModalTitle" class="text-xl font-bold mb-6 text-gray-900 dark:text-white flex items-center gap-2"><div class="bg-purple-100 dark:bg-purple-900/30 p-2 rounded-lg"><i data-lucide="list" class="w-5 h-5 text-purple-600 dark:text-purple-400"></i></div> Edit Kegiatan</h3>
             <input type="hidden" id="activityIndex">
             <div>
-                <label class="block text-sm font-medium text-gray-700">Deskripsi Kegiatan</label>
-                <textarea id="activityDesc" rows="4" class="form-input form-input-purple"></textarea>
+                <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">Deskripsi Kegiatan</label>
+                <textarea id="activityDesc" rows="4" class="form-input form-input-purple resize-none"></textarea>
             </div>
-            <div class="mt-6 flex justify-end gap-2">
-                <button onclick="window.closeActivityModal()" class="px-4 py-2 text-gray-500 hover:bg-gray-100 rounded-lg text-sm">Batal</button>
-                <button onclick="window.saveActivity()" class="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700 shadow">Simpan</button>
+            <div class="mt-8 flex justify-end gap-3">
+                <button onclick="window.closeActivityModal()" class="px-5 py-2.5 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl text-sm font-medium transition">Batal</button>
+                <button onclick="window.saveActivity()" class="px-5 py-2.5 bg-purple-600 text-white rounded-xl text-sm font-medium hover:bg-purple-700 shadow-lg shadow-purple-500/20 transition">Simpan</button>
             </div>
         </div>
     </div>
 
     <!-- Student Modal -->
-    <div id="modalStudent" class="fixed inset-0 z-[60] hidden bg-black/50 flex items-center justify-center p-4 backdrop-blur-sm" onclick="if(event.target===this) closeModal('modalStudent')">
-        <div class="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl transform transition-all scale-100">
-            <h3 class="text-lg font-bold mb-4 text-pink-600" id="modalStudentTitle">Data Murid</h3>
+    <div id="modalStudent" class="fixed inset-0 z-[60] hidden bg-black/50 dark:bg-black/80 flex items-center justify-center p-4 backdrop-blur-md transition-opacity duration-300" onclick="if(event.target===this) closeModal('modalStudent')">
+        <div class="bg-white dark:bg-gray-900 rounded-3xl w-full max-w-lg p-6 shadow-2xl transform transition-all scale-100 border border-gray-100 dark:border-gray-800 max-h-[90vh] overflow-y-auto">
+            <h3 class="text-xl font-bold mb-6 text-pink-600 dark:text-pink-400 flex items-center gap-2"><div class="bg-pink-100 dark:bg-pink-900/30 p-2 rounded-lg"><i data-lucide="user-plus" class="w-5 h-5 text-pink-600 dark:text-pink-400"></i></div> Data Murid</h3>
             <input type="hidden" id="inpStudentId">
-            <div class="space-y-4">
-                <div class="flex items-center gap-4 p-3 bg-pink-50 rounded-xl border border-pink-100">
-                    <div class="w-16 h-16 rounded-full bg-white border border-pink-200 flex-shrink-0 overflow-hidden relative shadow-sm">
+            <div class="space-y-5">
+                <div class="flex items-center gap-4 p-4 bg-pink-50 dark:bg-pink-900/10 rounded-2xl border border-pink-100 dark:border-pink-900/30">
+                    <div class="w-16 h-16 rounded-2xl bg-white dark:bg-gray-800 border border-pink-200 dark:border-pink-800 flex-shrink-0 overflow-hidden relative shadow-sm group">
                         <img id="inpStudentPhotoPreview" class="w-full h-full object-cover hidden">
-                        <div id="inpStudentPhotoPlace" class="absolute inset-0 flex items-center justify-center text-pink-300"><i data-lucide="camera" class="w-8 h-8"></i></div>
+                        <div id="inpStudentPhotoPlace" class="absolute inset-0 flex items-center justify-center text-pink-300 dark:text-pink-700 group-hover:scale-110 transition"><i data-lucide="camera" class="w-8 h-8"></i></div>
                     </div>
-                    <label class="cursor-pointer bg-white text-pink-600 px-4 py-2 rounded-lg border border-pink-200 text-sm font-medium hover:bg-pink-50 transition shadow-sm">
+                    <label class="cursor-pointer bg-white dark:bg-gray-800 text-pink-600 dark:text-pink-400 px-5 py-2.5 rounded-xl border border-pink-200 dark:border-pink-800 text-sm font-bold hover:bg-pink-50 dark:hover:bg-gray-700 transition shadow-sm">
                         Pilih Foto
                         <input type="file" id="inpStudentPhoto" class="hidden" accept="image/*" onchange="handlePhotoUpload(this)">
                     </label>
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Nama Lengkap</label>
+                    <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1.5 ml-1">Nama Lengkap</label>
                     <input id="inpStudentName" class="form-input form-input-pink" placeholder="Contoh: Budi Santoso">
                 </div>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
                     <div>
-                        <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">NISN</label>
+                        <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1.5 ml-1">NISN</label>
                         <input id="inpStudentNISN" class="form-input form-input-pink" placeholder="Nomor Induk">
                     </div>
                     <div>
-                        <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Kelas</label>
+                        <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1.5 ml-1">Kelas</label>
                         <input id="inpStudentClass" class="form-input form-input-pink" placeholder="Contoh: XII IPA 1">
                     </div>
                 </div>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
                     <div>
-                        <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">No. HP / WA</label>
+                        <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1.5 ml-1">No. HP / WA</label>
                         <input id="inpStudentPhone" class="form-input form-input-pink" placeholder="08xxxxxxxxxx">
                     </div>
                     <div>
-                        <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Tahun Ajaran</label>
+                        <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1.5 ml-1">Tahun Ajaran</label>
                         <input id="inpStudentYear" list="dl_years" class="form-input form-input-pink" placeholder="2024/2025">
                         <datalist id="dl_years"><option value="2023/2024"><option value="2024/2025"><option value="2025/2026"></datalist>
                     </div>
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Alamat Lengkap</label>
-                    <textarea id="inpStudentAddr" class="form-input form-input-pink" placeholder="Jalan, RT/RW, Kelurahan..." rows="2"></textarea>
+                    <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1.5 ml-1">Alamat Lengkap</label>
+                    <textarea id="inpStudentAddr" class="form-input form-input-pink resize-none" placeholder="Jalan, RT/RW, Kelurahan..." rows="3"></textarea>
                 </div>
             </div>
-            <div class="mt-8 flex justify-end gap-3 pt-4 border-t border-gray-100">
-                <button onclick="closeModal('modalStudent')" class="px-5 py-2.5 text-gray-500 hover:bg-gray-100 rounded-xl text-sm font-medium transition">Batal</button>
-                <button onclick="saveStudent()" id="btnSaveStudent" class="px-5 py-2.5 bg-pink-500 text-white rounded-xl text-sm font-medium hover:bg-pink-600 shadow-md hover:shadow-lg transition transform hover:-translate-y-0.5">Simpan Data</button>
+            <div class="mt-8 flex justify-end gap-3 pt-6 border-t border-gray-100 dark:border-gray-800">
+                <button onclick="closeModal('modalStudent')" class="px-6 py-3 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl text-sm font-bold transition">Batal</button>
+                <button onclick="saveStudent()" id="btnSaveStudent" class="px-6 py-3 bg-pink-500 text-white rounded-xl text-sm font-bold hover:bg-pink-600 shadow-lg shadow-pink-500/20 transition transform hover:-translate-y-0.5">Simpan Data</button>
             </div>
         </div>
     </div>
 
     <!-- Bulk Delete Modal -->
-    <div id="bulkDeleteModal" class="fixed inset-0 z-[70] hidden bg-black/50 flex items-center justify-center p-4 backdrop-blur-sm" onclick="if(event.target===this) closeModal('bulkDeleteModal')">
-        <div class="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl">
-            <div class="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100">
-                <div class="bg-red-50 p-2.5 rounded-xl"><i data-lucide="trash-2" class="w-6 h-6 text-red-600"></i></div>
-                <h3 class="text-xl font-bold text-gray-800">Hapus Massal</h3>
+    <div id="bulkDeleteModal" class="fixed inset-0 z-[70] hidden bg-black/50 dark:bg-black/80 flex items-center justify-center p-4 backdrop-blur-md transition-opacity duration-300" onclick="if(event.target===this) closeModal('bulkDeleteModal')">
+        <div class="bg-white dark:bg-gray-900 rounded-3xl w-full max-w-md p-6 shadow-2xl border border-gray-100 dark:border-gray-800">
+            <div class="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100 dark:border-gray-800">
+                <div class="bg-red-50 dark:bg-red-900/20 p-2.5 rounded-xl"><i data-lucide="trash-2" class="w-6 h-6 text-red-600 dark:text-red-400"></i></div>
+                <h3 class="text-xl font-bold text-gray-800 dark:text-white">Hapus Massal</h3>
             </div>
-            <div class="space-y-4">
+            <div class="space-y-5">
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Tahun Ajaran</label>
-                        <select id="bulkDeleteYear" class="form-input" onchange="filterBulkList()">
+                        <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1.5">Tahun Ajaran</label>
+                        <select id="bulkDeleteYear" class="form-input bg-white dark:bg-gray-800" onchange="filterBulkList()">
                             <option value="">-- Semua --</option>
                         </select>
                     </div>
                     <div>
-                        <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Kelas</label>
-                        <select id="bulkDeleteClass" class="form-input" onchange="filterBulkList()">
+                        <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1.5">Kelas</label>
+                        <select id="bulkDeleteClass" class="form-input bg-white dark:bg-gray-800" onchange="filterBulkList()">
                             <option value="">-- Semua --</option>
                         </select>
                     </div>
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Cari Nama</label>
+                    <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1.5">Cari Nama</label>
                     <div class="relative">
-                        <input type="text" id="bulkDeleteName" class="form-input pl-9" placeholder="Ketik nama murid..." oninput="filterBulkList()">
-                        <i data-lucide="search" class="absolute left-3 top-3 w-4 h-4 text-gray-400"></i>
+                        <input type="text" id="bulkDeleteName" class="form-input pl-10" placeholder="Ketik nama murid..." oninput="filterBulkList()">
+                        <i data-lucide="search" class="absolute left-3.5 top-3.5 w-4 h-4 text-gray-400"></i>
                     </div>
                 </div>
                 
-                <div class="border border-gray-200 rounded-xl overflow-hidden bg-gray-50">
-                    <div class="flex items-center justify-between p-3 border-b border-gray-200 bg-white">
-                        <span class="text-xs font-bold text-gray-600 uppercase tracking-wide">Daftar Murid</span>
-                        <button onclick="toggleSelectAll()" class="text-xs font-medium text-blue-600 hover:text-blue-700 hover:underline">Pilih Semua</button>
+                <div class="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden bg-gray-50 dark:bg-gray-800/30">
+                    <div class="flex items-center justify-between p-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+                        <span class="text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wide">Daftar Murid</span>
+                        <button onclick="toggleSelectAll()" class="text-xs font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 hover:underline">Pilih Semua</button>
                     </div>
-                    <div id="bulkDeleteList" class="max-h-48 overflow-y-auto p-2 space-y-1">
+                    <div id="bulkDeleteList" class="max-h-48 overflow-y-auto p-2 space-y-1 scrollbar-thin">
                         <!-- Items -->
                     </div>
                 </div>
-                <div class="flex justify-between items-center text-xs text-gray-500 px-1">
+                <div class="flex justify-between items-center text-xs text-gray-500 dark:text-gray-400 px-1">
                     <span>Pastikan data sudah benar.</span>
-                    <span>Terpilih: <span id="bulkDeleteCount" class="font-bold text-red-600">0</span></span>
+                    <span>Terpilih: <span id="bulkDeleteCount" class="font-bold text-red-600 dark:text-red-400 text-sm">0</span></span>
                 </div>
             </div>
             <div class="mt-8 flex justify-end gap-3">
-                <button onclick="closeModal('bulkDeleteModal')" class="px-5 py-2.5 text-gray-500 hover:bg-gray-100 rounded-xl text-sm font-medium transition">Batal</button>
-                <button onclick="confirmBulkDelete()" class="px-5 py-2.5 bg-red-600 text-white rounded-xl text-sm font-medium hover:bg-red-700 shadow-md hover:shadow-lg transition">Hapus Terpilih</button>
+                <button onclick="closeModal('bulkDeleteModal')" class="px-5 py-2.5 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl text-sm font-bold transition">Batal</button>
+                <button onclick="confirmBulkDelete()" class="px-5 py-2.5 bg-red-600 text-white rounded-xl text-sm font-bold hover:bg-red-700 shadow-lg shadow-red-500/20 transition transform hover:-translate-y-0.5">Hapus Terpilih</button>
             </div>
         </div>
     </div>
 
     <!-- Cloud Modal -->
-    <div id="cloudModal" class="fixed inset-0 z-[60] hidden bg-black/50 flex items-center justify-center p-4 backdrop-blur-sm" onclick="if(event.target===this) closeModal('cloudModal')">
-        <div class="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl">
-            <div class="flex items-center gap-3 mb-4">
-                <div class="bg-pink-100 p-2 rounded-full"><i data-lucide="cloud" class="w-5 h-5 text-pink-600"></i></div>
-                <h3 class="font-bold">Sinkronisasi Cloud</h3>
+    <div id="cloudModal" class="fixed inset-0 z-[60] hidden bg-black/50 dark:bg-black/80 flex items-center justify-center p-4 backdrop-blur-md transition-opacity duration-300" onclick="if(event.target===this) closeModal('cloudModal')">
+        <div class="bg-white dark:bg-gray-900 rounded-3xl w-full max-w-sm p-6 shadow-2xl border border-gray-100 dark:border-gray-800">
+            <div class="flex items-center gap-3 mb-6">
+                <div class="bg-pink-100 dark:bg-pink-900/30 p-2.5 rounded-xl"><i data-lucide="cloud" class="w-6 h-6 text-pink-600 dark:text-pink-400"></i></div>
+                <h3 class="text-xl font-bold text-gray-900 dark:text-white">Sinkronisasi Cloud</h3>
             </div>
-            <p class="text-xs text-gray-500 mb-4">Masukkan URL Google Apps Script Web App Anda untuk menyimpan data secara permanen di Google Sheet.</p>
-            <input id="inpCloudUrl" class="form-input form-input-pink text-xs mb-4" placeholder="https://script.google.com/macros/s/...">
-            <div class="grid grid-cols-2 gap-2 mb-4">
-                <button onclick="cloudSync('pull')" class="py-2 bg-gray-100 hover:bg-gray-200 rounded text-xs font-medium flex justify-center gap-1"><i data-lucide="download" class="w-3 h-3"></i> Ambil Data</button>
-                <button onclick="cloudSync('push')" class="py-2 bg-pink-50 hover:bg-pink-100 text-pink-600 rounded text-xs font-medium flex justify-center gap-1"><i data-lucide="upload" class="w-3 h-3"></i> Simpan Data</button>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mb-4 leading-relaxed">Masukkan URL Google Apps Script Web App Anda untuk menyimpan data secara permanen di Google Sheet.</p>
+            <input id="inpCloudUrl" class="form-input form-input-pink text-xs mb-5" placeholder="https://script.google.com/macros/s/...">
+            <div class="grid grid-cols-2 gap-3 mb-5">
+                <button onclick="cloudSync('pull')" class="py-2.5 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-xl text-xs font-bold flex justify-center gap-2 items-center text-gray-700 dark:text-gray-200 transition"><i data-lucide="download" class="w-4 h-4"></i> Ambil Data</button>
+                <button onclick="cloudSync('push')" class="py-2.5 bg-pink-50 dark:bg-pink-900/30 hover:bg-pink-100 dark:hover:bg-pink-900/50 text-pink-600 dark:text-pink-400 rounded-xl text-xs font-bold flex justify-center gap-2 items-center transition"><i data-lucide="upload" class="w-4 h-4"></i> Simpan Data</button>
             </div>
-            <button onclick="saveCloudSettings()" class="w-full py-2 bg-pink-500 text-white rounded-lg text-sm hover:bg-pink-600 shadow-sm">Simpan Pengaturan</button>
+            <button onclick="saveCloudSettings()" class="w-full py-3 bg-pink-500 text-white rounded-xl text-sm font-bold hover:bg-pink-600 shadow-md transition">Simpan Pengaturan</button>
         </div>
     </div>
 
     <!-- PDF Settings Modal -->
-    <div id="pdfSettingsModal" class="fixed inset-0 z-[70] hidden bg-black/50 flex items-center justify-center p-4 backdrop-blur-sm" onclick="if(event.target===this) window.closePdfSettings()">
-        <div class="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl">
-            <div class="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100">
-                <div class="bg-emerald-100 p-2 rounded-xl"><i data-lucide="settings" class="w-5 h-5 text-emerald-600"></i></div>
-                <h3 class="text-lg font-bold text-gray-800">Pengaturan Cetak & Tanda Tangan</h3>
+    <div id="pdfSettingsModal" class="fixed inset-0 z-[70] hidden bg-black/50 dark:bg-black/80 flex items-center justify-center p-4 backdrop-blur-md transition-opacity duration-300" onclick="if(event.target===this) window.closePdfSettings()">
+        <div class="bg-white dark:bg-gray-900 rounded-3xl w-full max-w-sm p-6 shadow-2xl border border-gray-100 dark:border-gray-800">
+            <div class="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100 dark:border-gray-800">
+                <div class="bg-emerald-100 dark:bg-emerald-900/30 p-2.5 rounded-xl"><i data-lucide="settings" class="w-6 h-6 text-emerald-600 dark:text-emerald-400"></i></div>
+                <h3 class="text-xl font-bold text-gray-800 dark:text-white">Pengaturan Cetak</h3>
             </div>
-            <div class="space-y-4 h-96 overflow-y-auto px-1">
+            <div class="space-y-5 h-96 overflow-y-auto px-2 scrollbar-thin">
                 <div>
-                    <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Ukuran Kertas</label>
-                    <select id="pdfSize" class="form-input form-input-emerald bg-white">
+                    <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1.5">Ukuran Kertas</label>
+                    <select id="pdfSize" class="form-input form-input-emerald bg-white dark:bg-gray-800">
                         <option value="a4">A4</option>
                         <option value="f4">F4 / Folio</option>
                         <option value="legal">Legal</option>
@@ -617,123 +704,162 @@
                     </select>
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Orientasi</label>
-                    <div class="grid grid-cols-2 gap-2">
-                        <label class="cursor-pointer">
+                    <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1.5">Orientasi</label>
+                    <div class="grid grid-cols-2 gap-3">
+                        <label class="cursor-pointer group">
                             <input type="radio" name="pdfOrientation" value="portrait" class="peer hidden">
-                            <div class="border border-gray-200 rounded-lg p-2 text-center text-sm peer-checked:bg-emerald-50 peer-checked:border-emerald-500 peer-checked:text-emerald-700 hover:bg-gray-50 transition">Potret</div>
+                            <div class="border border-gray-200 dark:border-gray-700 rounded-xl p-2.5 text-center text-sm font-medium peer-checked:bg-emerald-50 dark:peer-checked:bg-emerald-900/30 peer-checked:border-emerald-500 peer-checked:text-emerald-700 dark:peer-checked:text-emerald-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition dark:text-gray-300">Potret</div>
                         </label>
-                        <label class="cursor-pointer">
+                        <label class="cursor-pointer group">
                             <input type="radio" name="pdfOrientation" value="landscape" class="peer hidden" checked>
-                            <div class="border border-gray-200 rounded-lg p-2 text-center text-sm peer-checked:bg-emerald-50 peer-checked:border-emerald-500 peer-checked:text-emerald-700 hover:bg-gray-50 transition">Lanskap</div>
+                            <div class="border border-gray-200 dark:border-gray-700 rounded-xl p-2.5 text-center text-sm font-medium peer-checked:bg-emerald-50 dark:peer-checked:bg-emerald-900/30 peer-checked:border-emerald-500 peer-checked:text-emerald-700 dark:peer-checked:text-emerald-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition dark:text-gray-300">Lanskap</div>
                         </label>
                     </div>
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Margin (mm)</label>
+                    <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1.5">Margin (mm)</label>
                     <div class="grid grid-cols-2 gap-3">
-                        <div class="relative"><span class="absolute left-2 top-2 text-[10px] text-gray-400">Atas</span><input type="number" id="pdfMarginTop" value="15" class="form-input pt-5 pb-1 text-center"></div>
-                        <div class="relative"><span class="absolute left-2 top-2 text-[10px] text-gray-400">Kanan</span><input type="number" id="pdfMarginRight" value="15" class="form-input pt-5 pb-1 text-center"></div>
-                        <div class="relative"><span class="absolute left-2 top-2 text-[10px] text-gray-400">Bawah</span><input type="number" id="pdfMarginBottom" value="15" class="form-input pt-5 pb-1 text-center"></div>
-                        <div class="relative"><span class="absolute left-2 top-2 text-[10px] text-gray-400">Kiri</span><input type="number" id="pdfMarginLeft" value="15" class="form-input pt-5 pb-1 text-center"></div>
+                        <div class="relative"><span class="absolute left-3 top-2.5 text-[10px] text-gray-400 font-bold uppercase">Atas</span><input type="number" id="pdfMarginTop" value="15" class="form-input pt-6 pb-2 text-center font-bold"></div>
+                        <div class="relative"><span class="absolute left-3 top-2.5 text-[10px] text-gray-400 font-bold uppercase">Kanan</span><input type="number" id="pdfMarginRight" value="15" class="form-input pt-6 pb-2 text-center font-bold"></div>
+                        <div class="relative"><span class="absolute left-3 top-2.5 text-[10px] text-gray-400 font-bold uppercase">Bawah</span><input type="number" id="pdfMarginBottom" value="15" class="form-input pt-6 pb-2 text-center font-bold"></div>
+                        <div class="relative"><span class="absolute left-3 top-2.5 text-[10px] text-gray-400 font-bold uppercase">Kiri</span><input type="number" id="pdfMarginLeft" value="15" class="form-input pt-6 pb-2 text-center font-bold"></div>
                     </div>
                 </div>
                 
                 <!-- Signature Settings -->
-                <div class="border-t pt-4 mt-4">
-                    <h4 class="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2"><i data-lucide="pen-tool" class="w-4 h-4 text-emerald-500"></i> Pengaturan Tanda Tangan</h4>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                <div class="border-t border-gray-100 dark:border-gray-800 pt-6 mt-2">
+                    <h4 class="text-sm font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2"><div class="bg-emerald-50 dark:bg-emerald-900/30 p-1.5 rounded-lg"><i data-lucide="pen-tool" class="w-4 h-4 text-emerald-500 dark:text-emerald-400"></i></div> Pengaturan Tanda Tangan</h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                         <div>
-                            <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Tempat</label>
+                            <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1.5">Tempat</label>
                             <input type="text" id="pdfSignPlace" class="form-input text-xs form-input-emerald" placeholder="Semarang">
                         </div>
                         <div>
-                            <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Tanggal</label>
+                            <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1.5">Tanggal</label>
                             <input type="text" id="pdfSignDate" class="form-input text-xs form-input-emerald" placeholder="1 Januari 2024">
                         </div>
                     </div>
-                    <div class="mb-3">
-                        <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Jabatan</label>
+                    <div class="mb-4">
+                        <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1.5">Jabatan</label>
                         <input type="text" id="pdfSignTitle" class="form-input text-xs form-input-emerald" placeholder="Guru Wali">
                     </div>
-                    <div class="mb-3">
-                        <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Nama Penanda Tangan</label>
+                    <div class="mb-4">
+                        <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1.5">Nama Penanda Tangan</label>
                         <input type="text" id="pdfSignName" class="form-input text-xs form-input-emerald" placeholder="Nama Terang">
                     </div>
                     <div>
-                        <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">NIP / NUPTK</label>
+                        <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1.5">NIP / NUPTK</label>
                         <input type="text" id="pdfSignNIP" class="form-input text-xs form-input-emerald" placeholder="NIP...">
                     </div>
                 </div>
             </div>
-            <div class="mt-4 pt-4 border-t border-gray-100 sticky bottom-0 bg-white">
-                 <button onclick="window.closePdfSettings()" class="w-full px-5 py-2.5 bg-emerald-500 text-white rounded-xl text-sm font-medium hover:bg-emerald-600 shadow-md transition">Simpan Pengaturan</button>
+            <div class="mt-6 pt-5 border-t border-gray-100 dark:border-gray-800 sticky bottom-0 bg-white dark:bg-gray-900">
+                 <button onclick="window.closePdfSettings()" class="w-full px-5 py-3 bg-emerald-500 text-white rounded-xl text-sm font-bold hover:bg-emerald-600 shadow-lg shadow-emerald-500/20 transition transform hover:-translate-y-0.5">Simpan Pengaturan</button>
             </div>
         </div>
     </div>
 
     <!-- Journal Edit Modal -->
-    <div id="journalModal" class="fixed inset-0 z-[60] hidden bg-black/50 flex items-center justify-center p-4 backdrop-blur-sm" onclick="if(event.target===this) window.closeModal('journalModal')">
-        <div class="bg-white rounded-2xl w-full max-w-2xl p-6 shadow-2xl transform transition-all scale-100">
-            <div class="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100">
-                <div class="bg-yellow-100 p-2.5 rounded-xl"><i data-lucide="edit-3" class="w-6 h-6 text-yellow-600"></i></div>
-                <h3 class="text-xl font-bold text-gray-800">Edit Data Jurnal</h3>
+    <div id="journalModal" class="fixed inset-0 z-[60] hidden bg-black/50 dark:bg-black/80 flex items-center justify-center p-4 backdrop-blur-md transition-opacity duration-300" onclick="if(event.target===this) window.closeModal('journalModal')">
+        <div class="bg-white dark:bg-gray-900 rounded-3xl w-full max-w-2xl p-8 shadow-2xl transform transition-all scale-100 border border-gray-100 dark:border-gray-800 max-h-[90vh] overflow-y-auto">
+            <div class="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100 dark:border-gray-800">
+                <div class="bg-yellow-100 dark:bg-yellow-900/30 p-2.5 rounded-xl"><i data-lucide="edit-3" class="w-6 h-6 text-yellow-600 dark:text-yellow-400"></i></div>
+                <h3 class="text-xl font-bold text-gray-800 dark:text-white">Edit Data Jurnal</h3>
             </div>
             <input type="hidden" id="editJournalId">
-            <div class="space-y-4">
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="space-y-5">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
                     <div>
-                        <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Tanggal</label>
+                        <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1.5">Tanggal</label>
                         <input type="date" id="editJournalDate" class="form-input form-input-yellow text-sm">
                     </div>
                     <div>
-                        <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Waktu (24 Jam)</label>
+                        <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1.5">Waktu (24 Jam)</label>
                         <input type="time" id="editJournalTime" class="form-input form-input-yellow text-sm">
                     </div>
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Nama Murid</label>
-                    <input type="text" id="editJournalName" class="form-input form-input-yellow bg-gray-50" list="dl_students" onchange="autoFillJournalEdit(this)">
-                </div>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Kelas</label>
-                        <input type="text" id="editJournalClass" class="form-input form-input-yellow">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Tahun Ajaran</label>
-                        <input type="text" id="editJournalAcademicYear" class="form-input form-input-yellow">
+                    <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1.5">Nama Murid</label>
+                    <div class="relative">
+                        <input type="text" id="editJournalName" class="form-input form-input-yellow bg-gray-50 dark:bg-gray-800/50 pl-10" list="dl_students" onchange="autoFillJournalEdit(this)">
+                         <i data-lucide="search" class="absolute left-3.5 top-3 w-4 h-4 text-gray-400"></i>
                     </div>
                 </div>
-                <div>
-                    <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Jenis Bimbingan</label>
-                    <select id="editJournalType" class="form-input bg-white form-input-yellow">
-                        <option>Pendampingan Akademik</option>
-                        <option>Pengembangan Kompetensi</option>
-                        <option>Pengembangan Keterampilan</option>
-                        <option>Pembentukan Karakter</option>
-                    </select>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1.5">Kelas</label>
+                        <input type="text" id="editJournalClass" class="form-input form-input-yellow bg-gray-50 dark:bg-gray-800/50">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1.5">Tahun Ajaran</label>
+                        <input type="text" id="editJournalAcademicYear" class="form-input form-input-yellow bg-gray-50 dark:bg-gray-800/50">
+                    </div>
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Topik</label>
-                    <textarea id="editJournalTopic" rows="2" class="form-input form-input-yellow"></textarea>
+                    <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1.5">Jenis Bimbingan</label>
+                    <div class="relative">
+                        <select id="editJournalType" class="form-input bg-white dark:bg-gray-800 form-input-yellow appearance-none">
+                            <option>Pendampingan Akademik</option>
+                            <option>Pengembangan Kompetensi</option>
+                            <option>Pengembangan Keterampilan</option>
+                            <option>Pembentukan Karakter</option>
+                        </select>
+                        <i data-lucide="chevron-down" class="absolute right-4 top-3.5 w-4 h-4 text-gray-400 pointer-events-none"></i>
+                    </div>
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Tindak Lanjut</label>
-                    <textarea id="editJournalAction" rows="2" class="form-input form-input-yellow"></textarea>
+                    <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1.5">Topik</label>
+                    <textarea id="editJournalTopic" rows="2" class="form-input form-input-yellow resize-none"></textarea>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1.5">Tindak Lanjut</label>
+                    <textarea id="editJournalAction" rows="2" class="form-input form-input-yellow resize-none"></textarea>
                 </div>
             </div>
-            <div class="mt-8 flex justify-end gap-3 pt-4 border-t border-gray-100">
-                <button onclick="window.closeModal('journalModal')" class="px-5 py-2.5 text-gray-500 hover:bg-gray-100 rounded-xl text-sm font-medium transition">Batal</button>
-                <button onclick="window.saveJournalEdit()" class="px-5 py-2.5 bg-yellow-400 text-yellow-900 rounded-xl text-sm font-bold hover:bg-yellow-500 shadow-md hover:shadow-lg transition transform hover:-translate-y-0.5">Update Data</button>
+            <div class="mt-8 flex justify-end gap-3 pt-6 border-t border-gray-100 dark:border-gray-800">
+                <button onclick="window.closeModal('journalModal')" class="px-6 py-3 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl text-sm font-bold transition">Batal</button>
+                <button onclick="window.saveJournalEdit()" class="px-6 py-3 bg-yellow-400 text-yellow-900 rounded-xl text-sm font-bold hover:bg-yellow-500 shadow-lg shadow-yellow-500/20 transition transform hover:-translate-y-0.5">Update Data</button>
             </div>
         </div>
     </div>
-
-    <!-- JS LOGIC -->
+    
+    <!-- JS LOGIC - SAME AS BEFORE -->
     <script>
-        // ... (JS Logic remains identical to previous version, just ensure `refreshUI` handles grid responsive classes correctly as defined above) ...
-        // Keeping JS concise as requested for file block
+    // ... (All JS logic remains exactly the same as previous step) ...
+    // Re-inserting JS to ensure file completeness
+        // --- THEME LOGIC ---
+        function toggleTheme() {
+            const html = document.documentElement;
+            if (html.classList.contains('dark')) {
+                html.classList.remove('dark');
+                localStorage.setItem('theme', 'light');
+                document.getElementById('themeIcon').setAttribute('data-lucide', 'moon');
+            } else {
+                html.classList.add('dark');
+                localStorage.setItem('theme', 'dark');
+                document.getElementById('themeIcon').setAttribute('data-lucide', 'sun');
+            }
+            lucide.createIcons();
+        }
+
+        (function loadTheme() {
+            const savedTheme = localStorage.getItem('theme');
+            if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+        })();
+
+        window.addEventListener('DOMContentLoaded', () => {
+            if (document.documentElement.classList.contains('dark')) {
+                document.getElementById('themeIcon').setAttribute('data-lucide', 'sun');
+            } else {
+                document.getElementById('themeIcon').setAttribute('data-lucide', 'moon');
+            }
+            lucide.createIcons();
+        });
+
         window.refreshUI = () => {
             const grid = document.getElementById('student-grid');
             const filterYear = document.getElementById('filterYear');
@@ -744,12 +870,12 @@
             
             if(filtered.length === 0) { grid.innerHTML = '<div class="col-span-full text-center py-10 text-gray-400">Belum ada data murid.</div>'; } else {
                 grid.innerHTML = filtered.map(s => `
-                    <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition flex items-start gap-4 group">
-                        <div class="w-12 h-12 rounded-full bg-gray-100 flex-shrink-0 overflow-hidden">
-                            ${s.photo ? `<img src="${s.photo}" class="w-full h-full object-cover">` : `<div class="w-full h-full flex items-center justify-center text-gray-400"><i data-lucide="user"></i></div>`}
+                    <div class="bg-white dark:bg-dark-card p-4 rounded-xl shadow-sm border border-gray-100 dark:border-dark-border hover:shadow-md transition flex items-start gap-4 group">
+                        <div class="w-12 h-12 rounded-full bg-gray-100 dark:bg-gray-700 flex-shrink-0 overflow-hidden">
+                            ${s.photo ? `<img src="${s.photo}" class="w-full h-full object-cover">` : `<div class="w-full h-full flex items-center justify-center text-gray-400 dark:text-gray-500"><i data-lucide="user"></i></div>`}
                         </div>
-                        <div class="flex-1 min-w-0"><h4 class="font-bold text-gray-800 truncate">${s.name}</h4><p class="text-xs text-pink-500 font-medium">${s.class} <span class="text-gray-300">|</span> ${s.academicYear}</p><p class="text-[10px] text-gray-400 mt-1 truncate">NISN: ${s.nisn || '-'}</p></div>
-                        <div class="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition"><button onclick="editStudent('${s.id}')" class="p-1 text-blue-500 hover:bg-blue-50 rounded"><i data-lucide="pencil" class="w-3 h-3"></i></button><button onclick="window.dbDeleteStudent('${s.id}')" class="p-1 text-red-500 hover:bg-red-50 rounded"><i data-lucide="trash-2" class="w-3 h-3"></i></button></div>
+                        <div class="flex-1 min-w-0"><h4 class="font-bold text-gray-800 dark:text-white truncate">${s.name}</h4><p class="text-xs text-pink-500 dark:text-pink-400 font-medium">${s.class} <span class="text-gray-300 dark:text-gray-600">|</span> ${s.academicYear}</p><p class="text-[10px] text-gray-400 dark:text-gray-500 mt-1 truncate">NISN: ${s.nisn || '-'}</p></div>
+                        <div class="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition"><button onclick="editStudent('${s.id}')" class="p-1 text-blue-500 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded"><i data-lucide="pencil" class="w-3 h-3"></i></button><button onclick="window.dbDeleteStudent('${s.id}')" class="p-1 text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded"><i data-lucide="trash-2" class="w-3 h-3"></i></button></div>
                     </div>`).join('');
             }
             document.getElementById('dl_students').innerHTML = window.students.map(s => `<option value="${s.name}">`).join('');
@@ -758,17 +884,17 @@
             if(window.journals.length === 0) { tbody.innerHTML = ''; empty.classList.remove('hidden'); } else {
                 empty.classList.add('hidden');
                 tbody.innerHTML = window.journals.map((j, i) => `
-                    <tr class="hover:bg-gray-50">
-                        <td class="px-4 py-2 font-bold text-emerald-600">${window.journals.length - i}</td>
-                        <td class="px-4 py-2 text-xs"><div>${j.tanggal}</div><div class="text-gray-400">${j.waktu}</div></td>
-                        <td class="px-4 py-2 font-medium">${j.nama}</td>
-                        <td class="px-4 py-2 text-xs text-gray-500 max-w-[150px] truncate">${j.topik}</td>
-                        <td class="px-4 py-2 text-xs text-gray-500 max-w-[150px] truncate">${j.tindak_lanjut}</td>
-                        <td class="px-4 py-2 text-right"><button onclick="editJournal('${j.id}')" class="text-blue-500 hover:underline text-xs mr-2">Edit</button><button onclick="window.confirmDeleteJournal('${j.id}')" class="text-red-500 hover:underline text-xs">Hapus</button></td>
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                        <td class="px-6 py-4 font-bold text-emerald-600 dark:text-emerald-400">${window.journals.length - i}</td>
+                        <td class="px-6 py-4 text-xs whitespace-nowrap"><div class="font-medium text-gray-900 dark:text-white">${j.tanggal}</div><div class="text-gray-400 dark:text-gray-500 font-mono mt-0.5">${j.waktu}</div></td>
+                        <td class="px-6 py-4 font-medium text-gray-800 dark:text-gray-200">${j.nama}</td>
+                        <td class="px-6 py-4 text-xs text-gray-600 dark:text-gray-300 max-w-[200px] truncate">${j.topik}</td>
+                        <td class="px-6 py-4 text-xs text-gray-600 dark:text-gray-300 max-w-[200px] truncate">${j.tindak_lanjut}</td>
+                        <td class="px-6 py-4 text-right whitespace-nowrap"><button onclick="editJournal('${j.id}')" class="text-blue-500 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 p-2 rounded-lg transition mr-1"><i data-lucide="pencil" class="w-4 h-4"></i></button><button onclick="window.confirmDeleteJournal('${j.id}')" class="text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 p-2 rounded-lg transition"><i data-lucide="trash-2" class="w-4 h-4"></i></button></td>
                     </tr>`).join('');
             }
-            document.getElementById('pillar-list').innerHTML = window.pillars.map((p, i) => `<div class="flex justify-between items-center bg-gray-50 p-2 rounded border border-gray-100 group"><span class="text-sm flex items-center gap-2"><i data-lucide="${p.icon}" class="w-4 h-4 text-purple-500"></i> ${p.name}</span><div class="hidden group-hover:flex gap-1"><button onclick="editPillar(${i})" class="text-xs text-blue-500">Edit</button><button onclick="deletePillar(${i})" class="text-xs text-red-500">Hapus</button></div></div>`).join('');
-            document.getElementById('activity-list').innerHTML = window.activities.map((a, i) => `<tr class="hover:bg-gray-50 group"><td class="px-4 py-2 w-8 text-center text-purple-500 font-bold">${i+1}</td><td class="px-4 py-2">${a}</td><td class="px-4 py-2 w-16 text-center opacity-0 group-hover:opacity-100"><button onclick="deleteActivity(${i})" class="text-red-500"><i data-lucide="trash-2" class="w-3 h-3"></i></button></td></tr>`).join('');
+            document.getElementById('pillar-list').innerHTML = window.pillars.map((p, i) => `<div class="flex justify-between items-center bg-gray-50 dark:bg-gray-700/50 p-2 rounded border border-gray-100 dark:border-gray-700 group"><span class="text-sm flex items-center gap-2 text-gray-700 dark:text-gray-300"><i data-lucide="${p.icon}" class="w-4 h-4 text-purple-500 dark:text-purple-400"></i> ${p.name}</span><div class="hidden group-hover:flex gap-1"><button onclick="editPillar(${i})" class="text-xs text-blue-500 dark:text-blue-400">Edit</button><button onclick="deletePillar(${i})" class="text-xs text-red-500 dark:text-red-400">Hapus</button></div></div>`).join('');
+            document.getElementById('activity-list').innerHTML = window.activities.map((a, i) => `<tr class="hover:bg-gray-50 dark:hover:bg-gray-700 group"><td class="px-4 py-2 w-8 text-center text-purple-500 dark:text-purple-400 font-bold">${i+1}</td><td class="px-4 py-2 text-gray-700 dark:text-gray-300">${a}</td><td class="px-4 py-2 w-16 text-center opacity-0 group-hover:opacity-100"><button onclick="deleteActivity(${i})" class="text-red-500 dark:text-red-400"><i data-lucide="trash-2" class="w-3 h-3"></i></button></td></tr>`).join('');
             lucide.createIcons();
             const d = new Date(); document.getElementById('current-date').textContent = d.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
         }
@@ -905,7 +1031,7 @@
         window.importExcel = (input) => { const file = input.files[0]; if(!file) return; const reader = new FileReader(); reader.onload = async (e) => { const wb = XLSX.read(e.target.result, {type:'array'}); const json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]); let count = 0; for (const row of json) { const s = { id: Date.now() + Math.random().toString(), name: row['Nama'] || row['Nama Lengkap'] || '', class: row['Kelas'] || '', nisn: row['NISN'] || '', phone: row['HP'] || '', address: row['Alamat'] || '', academicYear: row['Tahun Ajaran'] || '2024/2025' }; if(s.name) { await window.dbSaveStudent(s, null); count++; } } window.showToast("Selesai", `${count} data diimpor.`, "success"); }; reader.readAsArrayBuffer(file); };
         window.bulkDeleteUI = async () => { window.openBulkDeleteModal(); };
         window.openBulkDeleteModal = () => { const years = [...new Set(window.students.map(s => s.academicYear || "-"))].sort().reverse(); const classes = [...new Set(window.students.map(s => s.class || "-"))].sort(); const yrSel = document.getElementById('bulkDeleteYear'); yrSel.innerHTML = '<option value="">-- Semua Tahun --</option>' + years.map(y => `<option value="${y}">${y}</option>`).join(''); const clSel = document.getElementById('bulkDeleteClass'); clSel.innerHTML = '<option value="">-- Semua Kelas --</option>' + classes.map(c => `<option value="${c}">${c}</option>`).join(''); document.getElementById('bulkDeleteName').value = ''; window.filterBulkList(); window.openModal('bulkDeleteModal'); }
-        window.filterBulkList = () => { const year = document.getElementById('bulkDeleteYear').value; const cls = document.getElementById('bulkDeleteClass').value; const name = document.getElementById('bulkDeleteName').value.toLowerCase(); const filtered = window.students.filter(s => { const mY = year ? s.academicYear === year : true; const mC = cls ? s.class === cls : true; const mN = name ? s.name.toLowerCase().includes(name) : true; return mY && mC && mN; }); const list = document.getElementById('bulkDeleteList'); if(filtered.length === 0) { list.innerHTML = '<div class="text-center text-gray-400 p-4">Tidak ada data.</div>'; } else { list.innerHTML = filtered.map(s => ` <label class="flex items-center gap-2 p-2 hover:bg-gray-100 rounded cursor-pointer"> <input type="checkbox" class="bulk-check" value="${s.id}" onchange="updateBulkCount()"> <div class="text-xs"> <div class="font-bold">${s.name}</div> <div class="text-gray-500">${s.class} | ${s.academicYear}</div> </div> </label> `).join(''); } window.updateBulkCount(); }
+        window.filterBulkList = () => { const year = document.getElementById('bulkDeleteYear').value; const cls = document.getElementById('bulkDeleteClass').value; const name = document.getElementById('bulkDeleteName').value.toLowerCase(); const filtered = window.students.filter(s => { const mY = year ? s.academicYear === year : true; const mC = cls ? s.class === cls : true; const mN = name ? s.name.toLowerCase().includes(name) : true; return mY && mC && mN; }); const list = document.getElementById('bulkDeleteList'); if(filtered.length === 0) { list.innerHTML = '<div class="text-center text-gray-400 p-4">Tidak ada data.</div>'; } else { list.innerHTML = filtered.map(s => ` <label class="flex items-center gap-2 p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer"> <input type="checkbox" class="bulk-check" value="${s.id}" onchange="updateBulkCount()"> <div class="text-xs"> <div class="font-bold text-gray-800 dark:text-gray-200">${s.name}</div> <div class="text-gray-500 dark:text-gray-400">${s.class} | ${s.academicYear}</div> </div> </label> `).join(''); } window.updateBulkCount(); }
         window.updateBulkCount = () => { const count = document.querySelectorAll('.bulk-check:checked').length; document.getElementById('bulkDeleteCount').textContent = count; }
         window.toggleSelectAll = () => { const cbs = document.querySelectorAll('.bulk-check'); const allChecked = Array.from(cbs).every(c => c.checked); cbs.forEach(c => c.checked = !allChecked); window.updateBulkCount(); }
         window.confirmBulkDelete = async () => { const ids = Array.from(document.querySelectorAll('.bulk-check:checked')).map(c => c.value); if(ids.length === 0) { alert("Pilih minimal satu murid!"); return; } if(confirm(`Yakin hapus ${ids.length} data terpilih?`)) { await window.dbBulkDeleteStudents(ids); window.closeModal('bulkDeleteModal'); window.showToast("Selesai", `${ids.length} data dihapus.`, "success"); } }
